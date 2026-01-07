@@ -42,6 +42,8 @@ defmodule Ollama.MixProject do
       {:nimble_options, "~> 1.1"},
       {:plug, "~> 1.18"},
       {:req, "~> 0.5"},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
     ]
   end
 
