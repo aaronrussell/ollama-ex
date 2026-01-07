@@ -441,6 +441,7 @@ defmodule Ollama.MockServer do
     ]
   }
 
+  plug(:strip_api_prefix)
   plug(:match)
   plug(Plug.Parsers, parsers: [:json], json_decoder: Jason)
   plug(:dispatch)
@@ -555,4 +556,10 @@ defmodule Ollama.MockServer do
       conn
     end)
   end
+
+  defp strip_api_prefix(%Plug.Conn{path_info: ["api" | rest]} = conn, _opts) do
+    %{conn | path_info: rest, request_path: "/" <> Enum.join(rest, "/")}
+  end
+
+  defp strip_api_prefix(conn, _opts), do: conn
 end

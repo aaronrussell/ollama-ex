@@ -411,6 +411,9 @@ defmodule Ollama do
     |> Kernel.++(override)
   end
 
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
   schema(:chat,
     model: [
       type: :string,
@@ -616,25 +619,18 @@ defmodule Ollama do
   end
 
   schema(:create_model,
-    name: [
-      type: :string,
-      required: true,
-      doc: "Name of the model to create."
-    ],
-    modelfile: [
-      type: :string,
-      required: true,
-      doc: "Contents of the Modelfile."
-    ],
-    quantize: [
-      type: :string,
-      doc: "Quantize f16 and f32 models when importing them."
-    ],
-    stream: [
-      type: {:or, [:boolean, :pid]},
-      default: false,
-      doc: "See [section on streaming](#module-streaming)."
-    ]
+    name: [type: :string, required: true, doc: "Name for the new model"],
+    modelfile: [type: :string, doc: "Modelfile contents"],
+    from: [type: :string, doc: "Base model to create from"],
+    files: [type: {:map, :string, :string}, doc: "Custom files to include"],
+    adapters: [type: {:map, :string, :string}, doc: "LoRA adapter files"],
+    template: [type: :string, doc: "Custom prompt template"],
+    license: [type: {:or, [:string, {:list, :string}]}, doc: "License declaration"],
+    system: [type: :string, doc: "System prompt"],
+    parameters: [type: {:or, [:map, :keyword_list]}, doc: "Model parameters"],
+    messages: [type: {:list, :map}, doc: "Sample conversation messages"],
+    quantize: [type: :string, doc: "Quantization level (f16, f32, etc.)"],
+    stream: [type: {:or, [:boolean, :pid]}, doc: "Enable streaming"]
   )
 
   @doc """
@@ -661,8 +657,23 @@ defmodule Ollama do
   @spec create_model(client(), keyword()) :: response()
   def create_model(%__MODULE__{} = client, params) when is_list(params) do
     with {:ok, params} <- NimbleOptions.validate(params, schema(:create_model)) do
+      body =
+        %{}
+        |> Map.put(:name, params[:name])
+        |> maybe_put(:modelfile, params[:modelfile])
+        |> maybe_put(:from, params[:from])
+        |> maybe_put(:files, params[:files])
+        |> maybe_put(:adapters, params[:adapters])
+        |> maybe_put(:template, params[:template])
+        |> maybe_put(:license, params[:license])
+        |> maybe_put(:system, params[:system])
+        |> maybe_put(:parameters, params[:parameters])
+        |> maybe_put(:messages, params[:messages])
+        |> maybe_put(:quantize, params[:quantize])
+        |> maybe_put(:stream, params[:stream])
+
       client
-      |> req(:post, "/create", json: Enum.into(params, %{}))
+      |> req(:post, "/create", json: body)
       |> res()
     end
   end
