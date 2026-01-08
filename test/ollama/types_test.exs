@@ -1,5 +1,5 @@
 defmodule Ollama.TypesTest do
-  use ExUnit.Case, async: true
+  use Supertester.ExUnitFoundation, isolation: :basic
 
   alias Ollama.Types.{
     ChatResponse,

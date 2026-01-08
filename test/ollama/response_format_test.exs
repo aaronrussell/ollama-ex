@@ -1,5 +1,5 @@
 defmodule Ollama.ResponseFormatTest do
-  use ExUnit.Case, async: false
+  use Supertester.ExUnitFoundation, isolation: :full_isolation, async: false
 
   alias Ollama.Types.{
     ChatResponse,

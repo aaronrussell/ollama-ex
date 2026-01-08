@@ -1,4 +1,4 @@
 defmodule Ollama.BlobTest do
-  use ExUnit.Case
+  use Supertester.ExUnitFoundation, isolation: :basic
   doctest Ollama.Blob
 end

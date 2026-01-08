@@ -1,5 +1,5 @@
 defmodule Ollama.SchemasTest do
-  use ExUnit.Case, async: true
+  use Supertester.ExUnitFoundation, isolation: :basic
 
   describe "chat schema validation" do
     test "requires model parameter" do

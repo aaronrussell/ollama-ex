@@ -11,4 +11,5 @@ for {module, file} <- [
   end
 end
 
+# Start the mock server
 {:ok, _pid} = Bandit.start_link(plug: Ollama.MockServer, port: 4000)

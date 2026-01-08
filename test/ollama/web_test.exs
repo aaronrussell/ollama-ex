@@ -1,5 +1,5 @@
 defmodule Ollama.WebTest do
-  use ExUnit.Case, async: false
+  use Supertester.ExUnitFoundation, isolation: :full_isolation, async: false
 
   alias Ollama.{RequestError, Web}
   alias Ollama.Web.{FetchResponse, SearchResponse}
@@ -24,6 +24,7 @@ defmodule Ollama.WebTest do
   end
 
   describe "authorization" do
+    @tag :cloud_api
     test "requires API key for cloud endpoints", %{client: client} do
       original = System.get_env("OLLAMA_API_KEY")
 
@@ -39,6 +40,7 @@ defmodule Ollama.WebTest do
       end
     end
 
+    @tag :cloud_api
     test "rejects non-bearer authorization header" do
       client = Ollama.init(headers: [{"authorization", "Token nope"}])
 

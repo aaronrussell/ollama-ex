@@ -1,5 +1,6 @@
 defmodule OllamaTest do
-  use ExUnit.Case, async: false
+  use Supertester.ExUnitFoundation, isolation: :full_isolation, async: false
+
   alias Ollama.ResponseError
 
   setup_all do

@@ -1,5 +1,5 @@
 defmodule Ollama.AliasesTest do
-  use ExUnit.Case, async: false
+  use Supertester.ExUnitFoundation, isolation: :full_isolation, async: false
 
   setup_all do
     {:ok, client: Ollama.init("http://localhost:4000")}

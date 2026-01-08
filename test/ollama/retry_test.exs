@@ -1,5 +1,5 @@
 defmodule Ollama.RetryTest do
-  use ExUnit.Case, async: true
+  use Supertester.ExUnitFoundation, isolation: :basic
 
   alias Ollama.{Retry, ResponseError}
 

@@ -1,6 +1,6 @@
 defmodule Ollama.ConfigTest do
   # Environment modification not async-safe
-  use ExUnit.Case, async: false
+  use Supertester.ExUnitFoundation, isolation: :full_isolation, async: false
 
   describe "environment variable configuration" do
     test "OLLAMA_HOST sets default base URL" do

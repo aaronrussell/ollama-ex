@@ -41,7 +41,8 @@ defmodule Ollama.MixProject do
       {:plug, "~> 1.19"},
       {:req, "~> 0.5"},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:supertester, "~> 0.5.0", only: :test}
     ]
   end
 

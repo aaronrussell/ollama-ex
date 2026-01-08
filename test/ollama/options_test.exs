@@ -1,5 +1,5 @@
 defmodule Ollama.OptionsTest do
-  use ExUnit.Case, async: true
+  use Supertester.ExUnitFoundation, isolation: :basic
 
   alias Ollama.Options
   alias Ollama.Options.Presets
