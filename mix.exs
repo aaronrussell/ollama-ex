@@ -7,8 +7,8 @@ defmodule Ollama.MixProject do
       name: "Ollama",
       description: "A nifty little library for working with Ollama in Elixir.",
       source_url: "https://github.com/lebrunel/ollama-ex",
-      version: "0.9.0",
-      elixir: "~> 1.13",
+      version: "0.9.1",
+      elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -34,11 +34,11 @@ defmodule Ollama.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:bandit, "~> 1.8", only: :test},
-      {:ex_doc, "~> 0.38", only: :dev, runtime: false},
+      {:bandit, "~> 1.10", only: :test},
+      {:ex_doc, "~> 0.39", only: :dev, runtime: false},
       {:jason, "~> 1.4"},
       {:nimble_options, "~> 1.1"},
-      {:plug, "~> 1.18"},
+      {:plug, "~> 1.19"},
       {:req, "~> 0.5"},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false}

@@ -8,22 +8,23 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     name: OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}}
     strategy:
       matrix:
-        otp: ['25.x', '26.x', '27.x']
-        elixir: ['1.15.8', '1.16.3', '1.17.3', '1.18.4']
+        otp: ['25.3.2', '26.2.5', '27.3.3']
+        elixir: ['1.15.8', '1.16.3', '1.17.3', '1.18.3']
         exclude:
-          - otp: '27.x'
+          - otp: '27.3.3'
             elixir: '1.15.8'
-          - otp: '27.x'
+          - otp: '27.3.3'
             elixir: '1.16.3'
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{matrix.otp}}
           elixir-version: ${{matrix.elixir}}
+          version-type: strict
       - run: mix deps.get
       - run: mix test

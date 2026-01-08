@@ -25,7 +25,7 @@ This guide walks you through your first steps with the Ollama Elixir client.
 ```elixir
 # mix.exs
 def deps do
-  [{:ollama, "~> 0.9"}]
+  [{:ollama, "~> 0.9.1"}]
 end
 ```
 

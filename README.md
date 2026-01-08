@@ -23,7 +23,7 @@ The package can be installed by adding `ollama` to your list of dependencies in 
 ```elixir
 def deps do
   [
-    {:ollama, "~> 0.9"}
+    {:ollama, "~> 0.9.1"}
   ]
 end
 ```
@@ -219,4 +219,4 @@ After receiving the function tool's value, the model will respond to the user's 
 
 This package is open source and released under the [Apache-2 License](https://github.com/lebrunel/ollama/blob/master/LICENSE).
 
-© Copyright 2024 [Push Code Ltd](https://www.pushcode.com/).
+© Copyright 2024-2026 [Push Code Ltd](https://www.pushcode.com/).

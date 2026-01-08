@@ -3,7 +3,7 @@
 ## Installation
 
 ```elixir
-{:ollama, "~> 0.9"}
+{:ollama, "~> 0.9.1"}
 ```
 
 ## Client
