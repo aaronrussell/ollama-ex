@@ -36,20 +36,61 @@ weather_tool = %{
   }
 }
 
-# First request - model decides to call tool
-{:ok, response} =
+system_message = %{
+  role: "system",
+  content:
+    "You must call the get_weather tool to answer. " <>
+      "Do not respond with the weather until you call the tool."
+}
+
+user_message = %{role: "user", content: "What's the weather in Tokyo?"}
+
+messages = [system_message, user_message]
+
+request = fn msgs ->
   Ollama.chat(client,
     model: "llama3.2",
-    messages: [%{role: "user", content: "What's the weather in Tokyo?"}],
-    tools: [weather_tool]
+    messages: msgs,
+    tools: [weather_tool],
+    options: [temperature: 0]
   )
+end
 
-# Check for tool calls
-case get_in(response, ["message", "tool_calls"]) do
-  nil ->
+{:ok, response} = request.(messages)
+
+tool_calls =
+  case get_in(response, ["message", "tool_calls"]) do
+    calls when is_list(calls) -> calls
+    _ -> []
+  end
+
+{response, tool_calls} =
+  if tool_calls == [] do
+    {:ok, retry} =
+      request.(
+        messages ++
+          [
+            %{role: "assistant", content: response["message"]["content"] || ""},
+            %{role: "user", content: "Call get_weather now. Do not answer without it."}
+          ]
+      )
+
+    retry_calls =
+      case get_in(retry, ["message", "tool_calls"]) do
+        calls when is_list(calls) -> calls
+        _ -> []
+      end
+
+    {retry, retry_calls}
+  else
+    {response, tool_calls}
+  end
+
+case tool_calls do
+  [] ->
     IO.puts("No tool call: #{response["message"]["content"]}")
 
-  tool_calls ->
+  _ ->
     IO.inspect(tool_calls, label: "Tool calls")
 
     # Simulate tool execution
@@ -60,11 +101,13 @@ case get_in(response, ["message", "tool_calls"]) do
       Ollama.chat(client,
         model: "llama3.2",
         messages: [
-          %{role: "user", content: "What's the weather in Tokyo?"},
+          system_message,
+          user_message,
           %{role: "assistant", content: "", tool_calls: tool_calls},
-          %{role: "tool", content: tool_result}
+          %{role: "tool", tool_name: "get_weather", content: tool_result}
         ],
-        tools: [weather_tool]
+        tools: [weather_tool],
+        options: [temperature: 0]
       )
 
     IO.puts("Final response: #{final["message"]["content"]}")

@@ -15,7 +15,7 @@ defmodule Ollama.MixProject do
       docs: docs(),
       package: [
         name: "ollama",
-        files: ~w(lib .formatter.exs mix.exs README.md LICENSE),
+        files: ~w(lib media .formatter.exs mix.exs README.md LICENSE),
         licenses: ["Apache-2.0"],
         links: %{
           "GitHub" => "https://github.com/lebrunel/ollama-ex"
@@ -49,6 +49,7 @@ defmodule Ollama.MixProject do
   defp docs do
     [
       main: "overview",
+      assets: %{"media" => "media"},
       extras: [
         {"README.md", title: "Overview", filename: "overview"},
         {"guides/getting-started.md", title: "Getting Started"},

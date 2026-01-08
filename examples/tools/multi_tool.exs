@@ -35,18 +35,64 @@ get_time =
     parameters: []
   )
 
-{:ok, response} =
+system_message = %{
+  role: "system",
+  content:
+    "You must call both tools (calculator and get_time) before answering. " <>
+      "Do not answer until the tools are called."
+}
+
+user_message = %{role: "user", content: "What time is it and what is 9*9?"}
+
+messages = [system_message, user_message]
+
+request = fn msgs ->
   Ollama.chat(client,
     model: "llama3.2",
-    messages: [%{role: "user", content: "What time is it and what is 9*9?"}],
-    tools: [calculator, get_time]
+    messages: msgs,
+    tools: [calculator, get_time],
+    options: [temperature: 0]
   )
+end
 
-case get_in(response, ["message", "tool_calls"]) do
-  nil ->
+{:ok, response} = request.(messages)
+
+tool_calls =
+  case get_in(response, ["message", "tool_calls"]) do
+    calls when is_list(calls) -> calls
+    _ -> []
+  end
+
+{response, tool_calls} =
+  if tool_calls == [] do
+    {:ok, retry} =
+      request.(
+        messages ++
+          [
+            %{role: "assistant", content: response["message"]["content"] || ""},
+            %{
+              role: "user",
+              content: "Call calculator and get_time now. Do not answer without them."
+            }
+          ]
+      )
+
+    retry_calls =
+      case get_in(retry, ["message", "tool_calls"]) do
+        calls when is_list(calls) -> calls
+        _ -> []
+      end
+
+    {retry, retry_calls}
+  else
+    {response, tool_calls}
+  end
+
+case tool_calls do
+  [] ->
     IO.puts("No tool calls. Response: #{response["message"]["content"]}")
 
-  tool_calls ->
+  _ ->
     IO.inspect(tool_calls, label: "Tool calls")
     IO.puts("Execute the tools locally and send results back as tool messages.")
 end
