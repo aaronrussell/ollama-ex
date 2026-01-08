@@ -59,6 +59,7 @@ elixir examples/basic/chat.exs
 ### Multimodal
 - [image_chat.exs](multimodal/image_chat.exs) - Image + chat
 - [image_completion.exs](multimodal/image_completion.exs) - Image + completion
+Sample image: `media/poster.png` (PNG/JPEG recommended for maximum compatibility).
 
 ### Thinking Mode
 - [basic_thinking.exs](thinking/basic_thinking.exs) - Enable thinking

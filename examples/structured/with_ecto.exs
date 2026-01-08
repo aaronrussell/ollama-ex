@@ -10,7 +10,27 @@ ollama_dep =
     {:ollama, "~> 0.10.0"}
   end
 
-Mix.install([ollama_dep, {:ecto, "~> 3.10"}])
+if Code.ensure_loaded?(Mix.Project) &&
+     function_exported?(Mix.Project, :get, 0) &&
+     Process.whereis(Mix.ProjectStack) &&
+     Mix.Project.get() do
+  :ok
+else
+  Mix.install([ollama_dep, {:ecto, "~> 3.10"}])
+end
+
+unless Code.ensure_loaded?(Ecto) do
+  IO.puts("""
+  Ecto is not available.
+
+  Run this example with:
+    elixir examples/structured/with_ecto.exs
+
+  Or add {:ecto, \"~> 3.10\"} to your mix.exs dependencies.
+  """)
+
+  System.halt(1)
+end
 
 defmodule Person do
   use Ecto.Schema

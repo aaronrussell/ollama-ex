@@ -10,7 +10,14 @@ ollama_dep =
     {:ollama, "~> 0.10.0"}
   end
 
-Mix.install([ollama_dep])
+if Code.ensure_loaded?(Mix.Project) &&
+     function_exported?(Mix.Project, :get, 0) &&
+     Process.whereis(Mix.ProjectStack) &&
+     Mix.Project.get() do
+  :ok
+else
+  Mix.install([ollama_dep])
+end
 
 client = Ollama.init()
 
