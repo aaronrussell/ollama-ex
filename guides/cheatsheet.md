@@ -93,4 +93,3 @@ Ollama.delete_model(client, name: "model")
 | `:think` | Enable thinking |
 | `:keep_alive` | Memory duration |
 | `:options` | Model params |
-```

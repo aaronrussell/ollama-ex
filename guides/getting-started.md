@@ -58,4 +58,4 @@ Chat responses include:
 
 - [Streaming Guide](streaming.md) - Real-time responses
 - [Tool Use Guide](tools.md) - Function calling
-- [Examples](../examples/) - Working code samples
+- [Examples](../examples/README.md) - Working code samples
