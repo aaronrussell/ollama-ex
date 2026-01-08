@@ -201,6 +201,16 @@ The default base URL is `http://localhost:11434`.
 ollama pull llama3.2
 ```
 
+For examples, also pull:
+
+```bash
+ollama pull nomic-embed-text
+ollama pull llava
+ollama pull deepseek-r1:1.5b
+```
+
+Thinking examples use `deepseek-r1:1.5b`, which supports `think`.
+
 Browse models:
 
 - https://ollama.com/search

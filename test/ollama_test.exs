@@ -320,29 +320,31 @@ defmodule OllamaTest do
 
   describe "list_models/1" do
     test "lists models that are available", %{client: client} do
-      assert {:ok, %{"models" => models}} = Ollama.list_models(client)
+      assert {:ok, res} = Ollama.list_models(client)
+      models = models_from_response(res)
       assert is_list(models)
 
       for model <- models do
-        assert is_binary(model["name"])
-        assert is_binary(model["digest"])
-        assert is_number(model["size"])
-        assert is_map(model["details"])
+        assert is_binary(model_value(model, :name))
+        assert is_binary(model_value(model, :digest))
+        assert is_number(model_value(model, :size))
+        assert is_map(model_value(model, :details))
       end
     end
   end
 
   describe "list_running/1" do
     test "lists models that are running", %{client: client} do
-      assert {:ok, %{"models" => models}} = Ollama.list_running(client)
+      assert {:ok, res} = Ollama.list_running(client)
+      models = models_from_response(res)
       assert is_list(models)
 
       for model <- models do
-        assert is_binary(model["name"])
-        assert is_binary(model["digest"])
-        assert is_number(model["size"])
-        assert is_number(model["size_vram"])
-        assert is_map(model["details"])
+        assert is_binary(model_value(model, :name))
+        assert is_binary(model_value(model, :digest))
+        assert is_number(model_value(model, :size))
+        assert is_number(model_value(model, :size_vram))
+        assert is_map(model_value(model, :details))
       end
     end
   end
@@ -655,5 +657,13 @@ defmodule OllamaTest do
       assert get_in(res, ["message", "content"]) ==
                "The current stock price for Apple (AAPL) is approximately $1568.12."
     end
+  end
+
+  defp models_from_response(%{"models" => models}) when is_list(models), do: models
+  defp models_from_response(%Ollama.Types.ListResponse{models: models}), do: models
+  defp models_from_response(%Ollama.Types.ProcessResponse{models: models}), do: models
+
+  defp model_value(model, key) when is_atom(key) do
+    Map.get(model, key) || Map.get(model, Atom.to_string(key))
   end
 end

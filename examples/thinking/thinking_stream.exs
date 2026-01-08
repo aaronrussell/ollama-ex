@@ -14,7 +14,7 @@ Mix.install([ollama_dep])
 
 client = Ollama.init()
 
-model = "llama3.2"
+model = "deepseek-r1:1.5b"
 messages = [%{role: "user", content: "Count to 5 and explain your reasoning."}]
 
 stream_result =
@@ -48,7 +48,10 @@ case stream_result do
     rescue
       error in Ollama.ResponseError ->
         if error.status == 400 do
-          IO.puts("Thinking not supported by this model; streaming without think.")
+          IO.puts(
+            "Thinking not supported by #{model}; streaming without think. " <>
+              "Use a model that supports `think` to see thinking output."
+          )
 
           {:ok, fallback_stream} =
             Ollama.chat(client,

@@ -11,11 +11,12 @@ Examples demonstrating ollama-ex features, designed to run against a real Ollama
 The runner will:
 
 - Verify the Ollama server is reachable (default: `http://localhost:11434`).
-- Pull required models if the `ollama` CLI is available.
+- Pull required models if the `ollama` CLI is available (`llama3.2`, `nomic-embed-text`, `llava`, `deepseek-r1:1.5b`).
 - Run every example, including the interactive chat history and LiveView module compile.
 - Skip cloud/web examples if `OLLAMA_API_KEY` is not set (invalid keys report 401/403).
-- Skip multimodal examples if no compatible model (e.g. `llava`) is installed.
-- Skip custom model creation unless `RUN_CREATE_MODEL=1`.
+- Multimodal examples require a compatible model (`llava`). If not installed, they print a prompt.
+- Thinking examples use `deepseek-r1:1.5b` (supports `think`).
+- Skip custom model creation unless `RUN_CREATE_MODEL=1` (it writes a new local model).
 
 Run `./examples/run_all.sh --help` to see optional skips.
 
@@ -89,6 +90,5 @@ elixir examples/basic/chat.exs
 
 - Elixir 1.15+
 - Ollama installed and running (`ollama serve`)
-- Models pulled (`ollama pull llama3.2`, `ollama pull nomic-embed-text`)
-- For multimodal examples: `ollama pull llava`
+- Models pulled (`ollama pull llama3.2`, `ollama pull nomic-embed-text`, `ollama pull llava`, `ollama pull deepseek-r1:1.5b`)
 - For web examples: create a key at https://ollama.com/settings/keys and set `OLLAMA_API_KEY`

@@ -12,7 +12,7 @@ Mix.install([ollama_dep])
 
 client = Ollama.init()
 
-model = "llama3.2"
+model = "deepseek-r1:1.5b"
 messages = [%{role: "user", content: "How many Rs are in the word 'strawberry'?"}]
 
 response =
@@ -21,7 +21,10 @@ response =
       response
 
     {:error, %{status: 400}} ->
-      IO.puts("Thinking not supported by this model; retrying without think.")
+      IO.puts(
+        "Thinking not supported by #{model}; retrying without think. " <>
+          "Use a model that supports `think` to see thinking output."
+      )
 
       case Ollama.chat(client, model: model, messages: messages) do
         {:ok, response} -> response

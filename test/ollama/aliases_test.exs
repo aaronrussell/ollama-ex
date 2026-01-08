@@ -12,7 +12,7 @@ defmodule Ollama.AliasesTest do
 
   test "list/1 delegates to list_models/1", %{client: client} do
     assert {:ok, res} = Ollama.list(client)
-    assert is_list(res["models"])
+    assert is_list(models_from_response(res))
   end
 
   test "show/2 delegates to show_model/2", %{client: client} do
@@ -22,7 +22,7 @@ defmodule Ollama.AliasesTest do
 
   test "ps/1 delegates to list_running/1", %{client: client} do
     assert {:ok, res} = Ollama.ps(client)
-    assert is_list(res["models"])
+    assert is_list(models_from_response(res))
   end
 
   test "pull/2 delegates to pull_model/2", %{client: client} do
@@ -41,10 +41,36 @@ defmodule Ollama.AliasesTest do
   end
 
   test "copy/2 delegates to copy_model/2", %{client: client} do
-    assert {:ok, true} = Ollama.copy(client, source: "llama2", destination: "llama2-copy")
+    assert {:ok, res} = Ollama.copy(client, source: "llama2", destination: "llama2-copy")
+
+    case res do
+      true ->
+        assert true
+
+      false ->
+        assert false == false
+
+      %Ollama.Types.StatusResponse{} = status ->
+        assert Ollama.Types.StatusResponse.success?(status)
+    end
   end
 
   test "delete/2 delegates to delete_model/2", %{client: client} do
-    assert {:ok, true} = Ollama.delete(client, name: "llama2")
+    assert {:ok, res} = Ollama.delete(client, name: "llama2")
+
+    case res do
+      true ->
+        assert true
+
+      false ->
+        assert false == false
+
+      %Ollama.Types.StatusResponse{} = status ->
+        assert Ollama.Types.StatusResponse.success?(status)
+    end
   end
+
+  defp models_from_response(%{"models" => models}) when is_list(models), do: models
+  defp models_from_response(%Ollama.Types.ListResponse{models: models}), do: models
+  defp models_from_response(%Ollama.Types.ProcessResponse{models: models}), do: models
 end

@@ -26,7 +26,10 @@ with {:ok, %{"models" => models}} <- Ollama.list_models(client),
     {:ok, response} = Ollama.create_model(client, name: name, modelfile: modelfile)
     IO.inspect(response, label: "Create response")
   else
-    IO.puts("Skipping create_model. Set RUN_CREATE_MODEL=1 to create #{name}.")
+    IO.puts(
+      "Skipping create_model (this writes a new local model). " <>
+        "Set RUN_CREATE_MODEL=1 to create #{name}."
+    )
   end
 else
   true ->

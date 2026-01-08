@@ -22,6 +22,14 @@ This guide walks you through your first steps with the Ollama Elixir client.
 
    Browse models at https://ollama.com/search.
 
+   For examples, also pull:
+
+   ```bash
+   ollama pull nomic-embed-text
+   ollama pull llava
+   ollama pull deepseek-r1:1.5b
+   ```
+
 ## Add to Your Project
 
 ```elixir

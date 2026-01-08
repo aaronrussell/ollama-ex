@@ -25,11 +25,12 @@ defmodule Ollama.WebTest do
 
   describe "authorization" do
     @tag :cloud_api
-    test "requires API key for cloud endpoints", %{client: client} do
+    test "requires API key for cloud endpoints" do
       original = System.get_env("OLLAMA_API_KEY")
 
       try do
         System.delete_env("OLLAMA_API_KEY")
+        client = Ollama.init(Req.new(base_url: "http://localhost:4000/api", headers: []))
 
         assert {:error, %RequestError{reason: :missing_api_key}} =
                  Web.search(client, query: "elixir", base_url: "https://ollama.com/api")

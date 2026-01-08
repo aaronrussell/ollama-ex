@@ -144,6 +144,8 @@ if [[ "$skip_pull" == "false" ]]; then
 
       ensure_model "llama3.2"
       ensure_model "nomic-embed-text"
+      ensure_model "llava"
+      ensure_model "deepseek-r1:1.5b"
     else
       echo "ollama list failed; skipping model checks."
       echo "If examples fail, run: ollama pull llama3.2 nomic-embed-text"

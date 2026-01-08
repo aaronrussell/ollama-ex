@@ -26,6 +26,14 @@ ollama-python library.
 2. Start the server (if needed): `ollama serve`
 3. Pull a model: `ollama pull llama3.2`
 
+For examples, also pull:
+
+- `ollama pull nomic-embed-text` (embeddings)
+- `ollama pull llava` (multimodal)
+- `ollama pull deepseek-r1:1.5b` (thinking)
+
+Thinking examples use `deepseek-r1:1.5b`, which supports `think`.
+
 For full setup details (including cloud usage and Linux manual install), see
 [Ollama Server Setup](guides/ollama-setup.md).
 
