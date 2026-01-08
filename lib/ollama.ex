@@ -928,8 +928,8 @@ defmodule Ollama do
   )
 
   @doc """
-  Upload a model to a model library. Requires registering for
-  [ollama.ai](https://ollama.ai) and adding a public key first. Optionally streamable.
+  Upload a model to a model library. Requires an Ollama account and a public
+  key from https://ollama.com/settings/keys. Optionally streamable.
 
   ## Parameters
 

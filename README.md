@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/github/license/lebrunel/ollama-ex?color=informational)](https://github.com/lebrunel/ollama-ex/blob/main/LICENSE)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/lebrunel/ollama-ex/elixir.yml?branch=main)](https://github.com/lebrunel/ollama-ex/actions)
 
-[Ollama](https://ollama.ai) is a powerful tool for running large language models locally or on your own infrastructure. This library provides an interface for working with Ollama in Elixir.
+[Ollama](https://ollama.com) is a powerful tool for running large language models locally or on your own infrastructure. This library provides an interface for working with Ollama in Elixir.
 
 - 🦙 Full implementation of the Ollama API
 - 🧠 Extended thinking
@@ -16,14 +16,29 @@
   - Stream to an Enumerable
   - Or stream messages to any Elixir process
 
+## Prerequisites
+
+1. **Install Ollama**
+   - https://ollama.com/download
+2. **Start the server (if it is not already running)**
+   - `ollama serve`
+3. **Pull a model**
+   - `ollama pull llama3.2`
+   - Browse models at https://ollama.com/search
+
+For full setup details, including cloud usage, see
+[Ollama Server Setup](guides/ollama-setup.md).
+
 ## Installation
+
+Requires Elixir 1.15+.
 
 The package can be installed by adding `ollama` to your list of dependencies in `mix.exs`.
 
 ```elixir
 def deps do
   [
-    {:ollama, "~> 0.9.1"}
+    {:ollama, "~> 0.10.0"}
   ]
 end
 ```
@@ -81,6 +96,90 @@ Ollama.completion(client, [
   }
 ])
 # {:ok, %{"response" => "{ \"name\": \"Canada\" ,\"capital\": \"Ottawa\" ,\"languages\": [\"English\", \"French\"] }", ...}}
+```
+
+## Cloud Models and Hosted API
+
+Ollama provides cloud models and a hosted API. You can run cloud models through
+your local Ollama instance or call the hosted API directly.
+
+### Use cloud models via local Ollama
+
+1) Sign in (one-time):
+
+```bash
+ollama signin
+```
+
+2) Pull a cloud model:
+
+```bash
+ollama pull gpt-oss:120b-cloud
+```
+
+3) Make a request:
+
+```elixir
+client = Ollama.init()
+
+{:ok, stream} = Ollama.chat(client, [
+  model: "gpt-oss:120b-cloud",
+  messages: [%{role: "user", content: "Why is the sky blue?"}],
+  stream: true
+])
+
+stream
+|> Stream.each(fn chunk ->
+  IO.write(get_in(chunk, ["message", "content"]) || "")
+end)
+|> Stream.run()
+```
+
+Supported cloud model names currently include:
+
+- `deepseek-v3.1:671b-cloud`
+- `gpt-oss:20b-cloud`
+- `gpt-oss:120b-cloud`
+- `kimi-k2:1t-cloud`
+- `qwen3-coder:480b-cloud`
+- `kimi-k2-thinking`
+
+See https://ollama.com/search?c=cloud for updates.
+
+### Call the hosted API (ollama.com)
+
+1) Create an API key: https://ollama.com/settings/keys
+
+2) Export the key:
+
+```bash
+export OLLAMA_API_KEY="your_api_key_here"
+```
+
+3) (Optional) List models:
+
+```bash
+curl https://ollama.com/api/tags
+```
+
+4) Point the client at the hosted API:
+
+```elixir
+client = Ollama.init("https://ollama.com")
+
+{:ok, response} = Ollama.chat(client, [
+  model: "gpt-oss:120b",
+  messages: [%{role: "user", content: "Why is the sky blue?"}]
+])
+```
+
+The client will add the `Authorization` header automatically when
+`OLLAMA_API_KEY` is set. To override headers explicitly:
+
+```elixir
+client = Ollama.init("https://ollama.com",
+  headers: [{"authorization", "Bearer your_api_key_here"}]
+)
 ```
 
 ## Streaming

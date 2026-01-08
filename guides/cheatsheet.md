@@ -3,7 +3,7 @@
 ## Installation
 
 ```elixir
-{:ollama, "~> 0.9.1"}
+{:ollama, "~> 0.10.0"}
 ```
 
 ## Client
@@ -12,6 +12,13 @@
 client = Ollama.init()                              # Default
 client = Ollama.init("http://host:11434")          # Custom host
 client = Ollama.init(receive_timeout: 120_000)     # With options
+```
+
+## Environment
+
+```bash
+export OLLAMA_HOST="http://host:11434"
+export OLLAMA_API_KEY="your_api_key_here"
 ```
 
 ## Chat

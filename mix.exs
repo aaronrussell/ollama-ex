@@ -7,7 +7,7 @@ defmodule Ollama.MixProject do
       name: "Ollama",
       description: "A nifty little library for working with Ollama in Elixir.",
       source_url: "https://github.com/lebrunel/ollama-ex",
-      version: "0.9.1",
+      version: "0.10.0",
       elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -47,24 +47,28 @@ defmodule Ollama.MixProject do
 
   defp docs do
     [
-      main: "readme",
+      main: "overview",
       extras: [
-        "README.md",
-        "guides/getting-started.md",
-        "guides/streaming.md",
-        "guides/tools.md",
-        "guides/structured-outputs.md",
-        "guides/cheatsheet.md",
-        "CHANGELOG.md",
-        "LICENSE"
+        {"README.md", title: "Overview", filename: "overview"},
+        {"guides/getting-started.md", title: "Getting Started"},
+        {"guides/ollama-setup.md", title: "Ollama Server Setup"},
+        {"guides/streaming.md", title: "Streaming"},
+        {"guides/tools.md", title: "Tools"},
+        {"guides/structured-outputs.md", title: "Structured Outputs"},
+        {"guides/cheatsheet.md", title: "Cheatsheet"},
+        {"examples/README.md", title: "Examples", filename: "examples"},
+        {"LICENSE", title: "License"}
       ],
       groups_for_extras: [
-        Guides: ~r/guides\/.*/
+        Overview: ["README.md"],
+        Guides: ~r/guides\/.*/,
+        Examples: ~r/examples\/README\.md/,
+        Project: ["LICENSE"]
       ],
       groups_for_modules: [
         Client: [Ollama],
         Errors: [Ollama.HTTPError],
-        Internal: [Ollama.Blob, Ollama.Schemas]
+        Internals: [Ollama.Blob, Ollama.Schemas]
       ]
     ]
   end

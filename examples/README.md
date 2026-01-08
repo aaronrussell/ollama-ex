@@ -66,6 +66,6 @@ ollama serve
 
 ## Requirements
 
-- Elixir 1.13+
-- Running Ollama server (`ollama serve`)
+- Elixir 1.15+
+- Ollama installed and running (`ollama serve`)
 - Models pulled (`ollama pull llama3.2`)

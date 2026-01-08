@@ -6,7 +6,7 @@ This guide walks you through your first steps with the Ollama Elixir client.
 
 1. **Install Ollama**
 
-   Visit [ollama.ai](https://ollama.ai) and download for your platform.
+   Download Ollama from https://ollama.com/download.
 
 2. **Start Ollama Server**
 
@@ -20,12 +20,14 @@ This guide walks you through your first steps with the Ollama Elixir client.
    ollama pull llama3.2
    ```
 
+   Browse models at https://ollama.com/search.
+
 ## Add to Your Project
 
 ```elixir
 # mix.exs
 def deps do
-  [{:ollama, "~> 0.9.1"}]
+  [{:ollama, "~> 0.10.0"}]
 end
 ```
 
@@ -58,4 +60,5 @@ Chat responses include:
 
 - [Streaming Guide](streaming.md) - Real-time responses
 - [Tool Use Guide](tools.md) - Function calling
+- [Ollama Server Setup](ollama-setup.md) - Local and cloud configuration
 - [Examples](../examples/README.md) - Working code samples
