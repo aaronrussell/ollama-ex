@@ -1,247 +1,61 @@
 defmodule Ollama do
   @version Keyword.fetch!(Mix.Project.config(), :version)
   @moduledoc """
-  ![Ollama-ex](https://raw.githubusercontent.com/lebrunel/ollama-ex/main/media/poster.webp)
+  Elixir client for the Ollama API.
 
-  ![License](https://img.shields.io/github/license/lebrunel/ollama-ex?color=informational)
+  ## Quick Start
 
-  [Ollama](https://ollama.ai) is a powerful tool for running large language
-  models locally or on your own infrastructure. This library provides an
-  interface for working with Ollama in Elixir.
+      client = Ollama.init()
+      {:ok, response} = Ollama.chat(client,
+        model: "llama3.2",
+        messages: [%{role: "user", content: "Hello!"}]
+      )
 
-  - 🦙 Full implementation of the Ollama API
-  - 🧠 Extended thinking
-  - 🧰 Tool use (function calling)
-  - 🧱 Structured outputs
-  - 🛜 Streaming requests
-    - Stream to an Enumerable
-    - Or stream messages to any Elixir process
+  ## Client Configuration
 
-  ## Installation
+      # Default (localhost:11434)
+      client = Ollama.init()
 
-  The package can be installed by adding `ollama` to your list of dependencies
-  in `mix.exs`.
+      # Custom host
+      client = Ollama.init("http://ollama.example.com:11434")
 
-  ```elixir
-  def deps do
-    [
-      {:ollama, "#{@version}"}
-    ]
-  end
-  ```
-
-  ## Quickstart
-
-  Assuming you have Ollama running on localhost, and that you have installed a
-  model, use `completion/2` or `chat/2` interact with the model.
-
-  ### 1. Generate a completion
-
-  ```elixir
-  iex> client = Ollama.init()
-
-  iex> Ollama.completion(client, [
-  ...>   model: "llama2",
-  ...>   prompt: "Why is the sky blue?",
-  ...> ])
-  {:ok, %{"response" => "The sky is blue because it is the color of the sky.", ...}}
-  ```
-
-  ### 2. Generate the next message in a chat
-
-  ```elixir
-  iex> client = Ollama.init()
-  iex> messages = [
-  ...>   %{role: "system", content: "You are a helpful assistant."},
-  ...>   %{role: "user", content: "Why is the sky blue?"},
-  ...>   %{role: "assistant", content: "Due to rayleigh scattering."},
-  ...>   %{role: "user", content: "How is that different than mie scattering?"},
-  ...> ]
-
-  iex> Ollama.chat(client, [
-  ...>   model: "llama2",
-  ...>   messages: messages,
-  ...> ])
-  {:ok, %{"message" => %{
-    "role" => "assistant",
-    "content" => "Mie scattering affects all wavelengths similarly, while Rayleigh favors shorter ones."
-  }, ...}}
-  ```
-
-  ### 3. Generate structured data
-
-  The `:format` option can be used with both `completion/2` and `chat/2`.
-
-  ```elixir
-  Ollama.completion(client, [
-    model: "llama3.1",
-    prompt: "Tell me about Canada",
-    format: %{
-      type: "object",
-      properties: %{
-        name: %{type: "string"},
-        capital: %{type: "string"},
-        languages: %{type: "array", items: %{type: "string"}},
-      },
-      required: ["name", "capital", "languages"]
-    }
-  ])
-  # {:ok, %{"response" => "{ \\"name\\": \\"Canada\\" ,\\"capital\\": \\"Ottawa\\" ,\\"languages\\": [\\"English\\", \\"French\\"] }", ...}}
-  ```
+      # With options
+      client = Ollama.init(
+        base_url: "http://localhost:11434/api",
+        receive_timeout: 120_000,
+        headers: [{"authorization", "Bearer token"}]
+      )
 
   ## Streaming
 
-  Streaming is supported on certain endpoints by setting the `:stream` option to
-  `true` or a `t:pid/0`.
+  Two modes are available:
 
-  When `:stream` is set to `true`, a lazy `t:Enumerable.t/0` is returned, which
-  can be used with any `Stream` functions.
+  ### Enumerable Mode
 
-  ```elixir
-  iex> Ollama.completion(client, [
-  ...>   model: "llama2",
-  ...>   prompt: "Why is the sky blue?",
-  ...>   stream: true,
-  ...> ])
-  {:ok, stream}
+      {:ok, stream} = Ollama.chat(client, model: "llama3.2", messages: msgs, stream: true)
+      Enum.each(stream, &IO.inspect/1)
 
-  iex> is_function(stream, 2)
-  true
+  ### Process Mode (for GenServer/LiveView)
 
-  iex> stream
-  ...> |> Stream.each(& Process.send(pid, &1, [])
-  ...> |> Stream.run()
-  :ok
-  ```
+      {:ok, task} = Ollama.chat(client, model: "llama3.2", messages: msgs, stream: self())
+      # Receive messages with handle_info/2
 
-  This approach above builds the `t:Enumerable.t/0` by calling `receive`, which
-  may cause issues in `GenServer` callbacks. As an alternative, you can set the
-  `:stream` option to a `t:pid/0`. This returns a `t:Task.t/0` that sends
-  messages to the specified process.
+  See the [Streaming Guide](guides/streaming.md) for details.
 
-  The following example demonstrates a streaming request in a LiveView event,
-  sending each streaming message back to the same LiveView process:
+  ## Error Handling
 
-  ```elixir
-  defmodule MyApp.ChatLive do
-    use Phoenix.LiveView
+  All functions return `{:ok, result}` or `{:error, reason}`.
 
-    # When the client invokes the "prompt" event, create a streaming request and
-    # asynchronously send messages back to self.
-    def handle_event("prompt", %{"message" => prompt}, socket) do
-      {:ok, task} = Ollama.completion(Ollama.init(), [
-        model: "llama2",
-        prompt: prompt,
-        stream: self(),
-      ])
-
-      {:noreply, assign(socket, current_request: task)}
-    end
-
-    # The streaming request sends messages back to the LiveView process.
-    def handle_info({_request_pid, {:data, _data}} = message, socket) do
-      pid = socket.assigns.current_request.pid
-      case message do
-        {^pid, {:data, %{"done" => false} = data}} ->
-          # handle each streaming chunk
-
-        {^pid, {:data, %{"done" => true} = data}} ->
-          # handle the final streaming chunk
-
-        {_pid, _data} ->
-          # this message was not expected!
+      case Ollama.chat(client, opts) do
+        {:ok, response} -> handle_success(response)
+        {:error, %Ollama.HTTPError{status: 404}} -> handle_not_found()
+        {:error, %Ollama.HTTPError{status: status}} -> handle_error(status)
       end
-    end
 
-    # Tidy up when the request is finished
-    def handle_info({ref, {:ok, %Req.Response{status: 200}}}, socket) do
-      Process.demonitor(ref, [:flush])
-      {:noreply, assign(socket, current_request: nil)}
-    end
-  end
-  ```
+  ## Links
 
-  Regardless of the streaming approach used, each streaming message is a plain
-  `t:map/0`. For the message schema, refer to the
-  [Ollama API docs](https://github.com/ollama/ollama/blob/main/docs/api.md).
-
-  ## Function calling
-
-  Ollama 0.3 and later versions support tool use and function calling on
-  compatible models. Note that Ollama currently doesn't support tool use with
-  streaming requests, so avoid setting `:stream` to `true`.
-
-  Using tools typically involves at least two round-trip requests to the model.
-  Begin by defining one or more tools using a schema similar to ChatGPT's.
-  Provide clear and concise descriptions for the tool and each argument.
-
-  ```elixir
-  iex> stock_price_tool = %{
-  ...>   type: "function",
-  ...>   function: %{
-  ...>     name: "get_stock_price",
-  ...>     description: "Fetches the live stock price for the given ticker.",
-  ...>     parameters: %{
-  ...>       type: "object",
-  ...>       properties: %{
-  ...>         ticker: %{
-  ...>           type: "string",
-  ...>           description: "The ticker symbol of a specific stock."
-  ...>         }
-  ...>       },
-  ...>       required: ["ticker"]
-  ...>     }
-  ...>   }
-  ...> }
-  ```
-
-  The first round-trip involves sending a prompt in a chat with the tool
-  definitions. The model should respond with a message containing a list of tool
-  calls.
-
-  ```elixir
-  iex> Ollama.chat(client, [
-  ...>   model: "mistral-nemo",
-  ...>   messages: [
-  ...>     %{role: "user", content: "What is the current stock price for Apple?"}
-  ...>   ],
-  ...>   tools: [stock_price_tool],
-  ...> ])
-  {:ok, %{"message" => %{
-    "role" => "assistant",
-    "content" => "",
-    "tool_calls" => [
-      %{"function" => %{
-        "name" => "get_stock_price",
-        "arguments" => %{"ticker" => "AAPL"}
-      }}
-    ]
-  }, ...}}
-  ```
-
-  Your implementation must intercept these tool calls and execute a
-  corresponding function in your codebase with the specified arguments. The next
-  round-trip involves passing the function's result back to the model as a
-  message with a `:role` of `"tool"`.
-
-  ```elixir
-  iex> Ollama.chat(client, [
-  ...>   model: "mistral-nemo",
-  ...>   messages: [
-  ...>     %{role: "user", content: "What is the current stock price for Apple?"},
-  ...>     %{role: "assistant", content: "", tool_calls: [%{"function" => %{"name" => "get_stock_price", "arguments" => %{"ticker" => "AAPL"}}}]},
-  ...>     %{role: "tool", content: "$217.96"},
-  ...>   ],
-  ...>   tools: [stock_price_tool],
-  ...> ])
-  {:ok, %{"message" => %{
-    "role" => "assistant",
-    "content" => "The current stock price for Apple (AAPL) is approximately $217.96.",
-  }, ...}}
-  ```
-
-  After receiving the function tool's value, the model will respond to the
-  user's original prompt, incorporating the function result into its response.
+  - [GitHub](https://github.com/lebrunel/ollama-ex)
+  - [Ollama API Docs](https://github.com/ollama/ollama/blob/main/docs/api.md)
   """
   use Ollama.Schemas
   alias Ollama.Blob
@@ -333,6 +147,10 @@ defmodule Ollama do
   @doc """
   Initializes a new Ollama client.
 
+  ## Parameters
+
+  - `opts` - Base URL, `%URI{}`, `Req.Request`, or keyword options for `Req.new/1`.
+
   ## Environment Variables
 
   - `OLLAMA_HOST` - Default Ollama server URL (default: http://localhost:11434)
@@ -348,6 +166,15 @@ defmodule Ollama do
 
       # With custom options
       client = Ollama.init(receive_timeout: 120_000)
+
+  ## Returns
+
+  - `t:client/0` - Configured Ollama client
+
+  ## See Also
+
+  - `chat/2` - Chat API requests
+  - `completion/2` - Completion API requests
 
   """
   @spec init(Req.url() | keyword() | Req.Request.t()) :: client()
@@ -466,6 +293,11 @@ defmodule Ollama do
   Generates the next message in a chat using the specified model. Optionally
   streamable.
 
+  ## Parameters
+
+  - `client` - Ollama client from `init/1`
+  - `params` - Keyword list of chat options (see below)
+
   ## Options
 
   #{doc(:chat)}
@@ -505,6 +337,18 @@ defmodule Ollama do
       ...>   stream: true,
       ...> ])
       {:ok, Ollama.Streaming{}}
+
+  ## Returns
+
+  - `{:ok, map()}` - Success with response data
+  - `{:ok, Stream.t()}` - When `stream: true`
+  - `{:ok, Task.t()}` - When `stream: pid`
+  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+
+  ## See Also
+
+  - `completion/2` - For single-turn generation
+  - `embed/2` - For embeddings
   """
   @spec chat(client(), keyword()) :: response()
   def chat(%__MODULE__{} = client, params) when is_list(params) do
@@ -589,6 +433,11 @@ defmodule Ollama do
   Generates a completion for the given prompt using the specified model.
   Optionally streamable.
 
+  ## Parameters
+
+  - `client` - Ollama client from `init/1`
+  - `params` - Keyword list of completion options (see below)
+
   ## Options
 
   #{doc(:completion)}
@@ -608,6 +457,18 @@ defmodule Ollama do
       ...>   stream: true,
       ...> ])
       {:ok, %Ollama.Streaming{}}
+
+  ## Returns
+
+  - `{:ok, map()}` - Success with response data
+  - `{:ok, Stream.t()}` - When `stream: true`
+  - `{:ok, Task.t()}` - When `stream: pid`
+  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+
+  ## See Also
+
+  - `chat/2` - For multi-turn conversations
+  - `embed/2` - For embeddings
   """
   @spec completion(client(), keyword()) :: response()
   def completion(%__MODULE__{} = client, params) when is_list(params) do
@@ -640,6 +501,11 @@ defmodule Ollama do
   Any dependent blobs reference in the modelfile, such as `FROM` and `ADAPTER`
   instructions, must exist first. See `check_blob/2` and `create_blob/2`.
 
+  ## Parameters
+
+  - `client` - Ollama client from `init/1`
+  - `params` - Keyword list of model creation options (see below)
+
   ## Options
 
   #{doc(:create_model)}
@@ -653,6 +519,18 @@ defmodule Ollama do
       ...>   stream: true,
       ...> ])
       {:ok, Ollama.Streaming{}}
+
+  ## Returns
+
+  - `{:ok, map()}` - Success with response data
+  - `{:ok, Stream.t()}` - When `stream: true`
+  - `{:ok, Task.t()}` - When `stream: pid`
+  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+
+  ## See Also
+
+  - `check_blob/2` - Verify dependent blobs
+  - `create_blob/2` - Create blob dependencies
   """
   @spec create_model(client(), keyword()) :: response()
   def create_model(%__MODULE__{} = client, params) when is_list(params) do
@@ -681,6 +559,10 @@ defmodule Ollama do
   @doc """
   Lists all models that Ollama has available.
 
+  ## Parameters
+
+  - `client` - Ollama client from `init/1`
+
   ## Example
 
       iex> Ollama.list_models(client)
@@ -688,6 +570,16 @@ defmodule Ollama do
         %{"name" => "codellama:13b", ...},
         %{"name" => "llama2:latest", ...},
       ]}}
+
+  ## Returns
+
+  - `{:ok, map()}` - Map containing available models
+  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+
+  ## See Also
+
+  - `show_model/2` - Fetch model details
+  - `list_running/1` - List running models
   """
   @spec list_models(client()) :: response()
   def list_models(%__MODULE__{} = client) do
@@ -699,12 +591,26 @@ defmodule Ollama do
   @doc """
   Lists currently running models, their memory footprint, and process details.
 
+  ## Parameters
+
+  - `client` - Ollama client from `init/1`
+
   ## Example
 
       iex> Ollama.list_running(client)
       {:ok, %{"models" => [
         %{"name" => "nomic-embed-text:latest", ...},
       ]}}
+
+  ## Returns
+
+  - `{:ok, map()}` - Map containing running models
+  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+
+  ## See Also
+
+  - `list_models/1` - List available models
+  - `show_model/2` - Fetch model details
   """
   @spec list_running(client()) :: response()
   def list_running(%__MODULE__{} = client) do
@@ -729,6 +635,11 @@ defmodule Ollama do
   Load a model into memory without generating a completion. Optionally specify
   a keep alive value (defaults to 5 minutes, set `-1` to permanently keep alive).
 
+  ## Parameters
+
+  - `client` - Ollama client from `init/1`
+  - `params` - Keyword list with `:model` and optional `:keep_alive`
+
   ## Options
 
   #{doc(:load_model)}
@@ -737,6 +648,17 @@ defmodule Ollama do
 
       iex> Ollama.preload(client, model: "llama3.1", timeout: 3_600_000)
       true
+
+  ## Returns
+
+  - `{:ok, true}` - When the model was loaded
+  - `{:ok, false}` - When the model was not found
+  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+
+  ## See Also
+
+  - `unload/2` - Unload a model
+  - `list_running/1` - Check running models
   """
   @spec preload(client(), keyword()) :: response()
   def preload(%__MODULE__{} = client, params) when is_list(params) do
@@ -750,6 +672,11 @@ defmodule Ollama do
   @doc """
   Stops a running model and unloads it from memory.
 
+  ## Parameters
+
+  - `client` - Ollama client from `init/1`
+  - `params` - Keyword list with `:model`
+
   ## Options
 
   - `:model` (`t:String.t/0`) - Required. Name of the model to unload.
@@ -758,6 +685,17 @@ defmodule Ollama do
 
       iex> Ollama.preload(client, model: "llama3.1")
       true
+
+  ## Returns
+
+  - `{:ok, true}` - When the model was unloaded
+  - `{:ok, false}` - When the model was not found
+  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+
+  ## See Also
+
+  - `preload/2` - Load a model
+  - `list_running/1` - Check running models
   """
   @spec unload(client(), keyword()) :: response()
   def unload(%__MODULE__{} = client, params) when is_list(params) do
@@ -781,6 +719,11 @@ defmodule Ollama do
   @doc """
   Shows all information for a specific model.
 
+  ## Parameters
+
+  - `client` - Ollama client from `init/1`
+  - `params` - Keyword list with `:name`
+
   ## Options
 
   #{doc(:show_model)}
@@ -800,6 +743,15 @@ defmodule Ollama do
         "parameters" => "...",
         "template" => "..."
       }}
+
+  ## Returns
+
+  - `{:ok, map()}` - Model details
+  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+
+  ## See Also
+
+  - `list_models/1` - List available models
   """
   @spec show_model(client(), keyword()) :: response()
   def show_model(%__MODULE__{} = client, params) when is_list(params) do
@@ -826,9 +778,14 @@ defmodule Ollama do
   @doc """
   Creates a model with another name from an existing model.
 
+  ## Parameters
+
+  - `client` - Ollama client from `init/1`
+  - `params` - Keyword list with `:source` and `:destination`
+
   ## Options
 
-  #{doc(:copy_model)}
+  #{doc(:delete_model)}
 
   ## Example
 
@@ -837,6 +794,17 @@ defmodule Ollama do
       ...>   destination: "llama2-backup"
       ...> ])
       {:ok, true}
+
+  ## Returns
+
+  - `{:ok, true}` - When the copy succeeded
+  - `{:ok, false}` - When the model was not found
+  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+
+  ## See Also
+
+  - `delete_model/2` - Delete a model
+  - `show_model/2` - Inspect a model
   """
   @spec copy_model(client(), keyword()) :: response()
   def copy_model(%__MODULE__{} = client, params) when is_list(params) do
@@ -858,6 +826,11 @@ defmodule Ollama do
   @doc """
   Deletes a model and its data.
 
+  ## Parameters
+
+  - `client` - Ollama client from `init/1`
+  - `params` - Keyword list with `:name`
+
   ## Options
 
   #{doc(:copy_model)}
@@ -866,6 +839,17 @@ defmodule Ollama do
 
       iex> Ollama.delete_model(client, name: "llama2")
       {:ok, true}
+
+  ## Returns
+
+  - `{:ok, true}` - When the delete succeeded
+  - `{:ok, false}` - When the model was not found
+  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+
+  ## See Also
+
+  - `copy_model/2` - Copy a model
+  - `show_model/2` - Inspect a model
   """
   @spec delete_model(client(), keyword()) :: response()
   def delete_model(%__MODULE__{} = client, params) when is_list(params) do
@@ -892,6 +876,11 @@ defmodule Ollama do
   @doc """
   Downloads a model from the ollama library. Optionally streamable.
 
+  ## Parameters
+
+  - `client` - Ollama client from `init/1`
+  - `params` - Keyword list with `:name` and optional `:stream`
+
   ## Options
 
   #{doc(:pull_model)}
@@ -904,6 +893,17 @@ defmodule Ollama do
       # Passing true to the :stream option initiates an async streaming request.
       iex> Ollama.pull_model(client, name: "llama2", stream: true)
       {:ok, %Ollama.Streaming{}}
+
+  ## Returns
+
+  - `{:ok, map()}` - Status updates or completion
+  - `{:ok, Stream.t()}` - When `stream: true`
+  - `{:ok, Task.t()}` - When `stream: pid`
+  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+
+  ## See Also
+
+  - `push_model/2` - Upload a model
   """
   @spec pull_model(client(), keyword()) :: response()
   def pull_model(%__MODULE__{} = client, params) when is_list(params) do
@@ -931,6 +931,11 @@ defmodule Ollama do
   Upload a model to a model library. Requires registering for
   [ollama.ai](https://ollama.ai) and adding a public key first. Optionally streamable.
 
+  ## Parameters
+
+  - `client` - Ollama client from `init/1`
+  - `params` - Keyword list with `:name` and optional `:stream`
+
   ## Options
 
   #{doc(:push_model)}
@@ -943,6 +948,17 @@ defmodule Ollama do
       # Passing true to the :stream option initiates an async streaming request.
       iex> Ollama.push_model(client, name: "mattw/pygmalion:latest", stream: true)
       {:ok, %Ollama.Streaming{}}
+
+  ## Returns
+
+  - `{:ok, map()}` - Status updates or completion
+  - `{:ok, Stream.t()}` - When `stream: true`
+  - `{:ok, Task.t()}` - When `stream: pid`
+  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+
+  ## See Also
+
+  - `pull_model/2` - Download a model
   """
   @spec push_model(client(), keyword()) :: response()
   def push_model(%__MODULE__{} = client, params) when is_list(params) do
@@ -956,6 +972,11 @@ defmodule Ollama do
   @doc """
   Checks a blob exists in ollama by its digest or binary data.
 
+  ## Parameters
+
+  - `client` - Ollama client from `init/1`
+  - `digest_or_blob` - Digest string or raw binary data
+
   ## Examples
 
       iex> Ollama.check_blob(client, "sha256:fe938a131f40e6f6d40083c9f0f430a515233eb2edaa6d72eb85c50d64f2300e")
@@ -963,6 +984,16 @@ defmodule Ollama do
 
       iex> Ollama.check_blob(client, "this should not exist")
       {:ok, false}
+
+  ## Returns
+
+  - `{:ok, true}` - When the blob exists
+  - `{:ok, false}` - When the blob does not exist
+  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+
+  ## See Also
+
+  - `create_blob/2` - Create a blob
   """
   @spec check_blob(client(), Blob.digest() | binary()) :: response()
   def check_blob(%__MODULE__{} = client, "sha256:" <> _ = digest),
@@ -974,10 +1005,25 @@ defmodule Ollama do
   @doc """
   Creates a blob from its binary data.
 
+  ## Parameters
+
+  - `client` - Ollama client from `init/1`
+  - `blob` - Raw binary data to store
+
   ## Example
 
       iex> Ollama.create_blob(client, data)
       {:ok, true}
+
+  ## Returns
+
+  - `{:ok, true}` - When the blob was created
+  - `{:ok, false}` - When the blob already exists
+  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+
+  ## See Also
+
+  - `check_blob/2` - Verify blob existence
   """
   @spec create_blob(client(), binary()) :: response()
   def create_blob(%__MODULE__{} = client, blob) when is_binary(blob) do
@@ -1019,6 +1065,11 @@ defmodule Ollama do
   @doc """
   Generate embeddings from a model for the given prompt.
 
+  ## Parameters
+
+  - `client` - Ollama client from `init/1`
+  - `params` - Keyword list of embed options (see below)
+
   ## Options
 
   #{doc(:embed)}
@@ -1035,6 +1086,15 @@ defmodule Ollama do
         [ 0.028196355, 0.043162502, -0.18592504, 0.035034444, 0.055619627,
           0.12082449, -0.0090096295, 0.047170386, -0.032078084, 0.0047163847, ...]
       ]}}
+
+  ## Returns
+
+  - `{:ok, map()}` - Embedding response data
+  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+
+  ## See Also
+
+  - `embeddings/2` - Deprecated embedding API
   """
   @spec embed(client(), keyword()) :: response()
   def embed(%__MODULE__{} = client, params) when is_list(params) do
@@ -1070,6 +1130,11 @@ defmodule Ollama do
   @doc """
   Generate embeddings from a model for the given prompt.
 
+  ## Parameters
+
+  - `client` - Ollama client from `init/1`
+  - `params` - Keyword list of embedding options (see below)
+
   ## Options
 
   #{doc(:embeddings)}
@@ -1084,6 +1149,15 @@ defmodule Ollama do
         0.5670403838157654, 0.009260174818336964, 0.23178744316101074, -0.2916173040866852, -0.8924556970596313,
         0.8785552978515625, -0.34576427936553955, 0.5742510557174683, -0.04222835972905159, -0.137906014919281
       ]}}
+
+  ## Returns
+
+  - `{:ok, map()}` - Embedding response data
+  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+
+  ## See Also
+
+  - `embed/2` - Preferred embedding API
   """
   @deprecated "Superseded by embed/2"
   @spec embeddings(client(), keyword()) :: response()

@@ -12,9 +12,7 @@ defmodule Ollama.MixProject do
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      docs: [
-        main: "Ollama"
-      ],
+      docs: docs(),
       package: [
         name: "ollama",
         files: ~w(lib .formatter.exs mix.exs README.md LICENSE),
@@ -44,6 +42,30 @@ defmodule Ollama.MixProject do
       {:req, "~> 0.5"},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
+    ]
+  end
+
+  defp docs do
+    [
+      main: "readme",
+      extras: [
+        "README.md",
+        "guides/getting-started.md",
+        "guides/streaming.md",
+        "guides/tools.md",
+        "guides/structured-outputs.md",
+        "guides/cheatsheet.md",
+        "CHANGELOG.md",
+        "LICENSE"
+      ],
+      groups_for_extras: [
+        Guides: ~r/guides\/.*/
+      ],
+      groups_for_modules: [
+        Client: [Ollama],
+        Errors: [Ollama.HTTPError],
+        Internal: [Ollama.Blob, Ollama.Schemas]
+      ]
     ]
   end
 

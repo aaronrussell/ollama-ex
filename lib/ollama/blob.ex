@@ -21,15 +21,26 @@ defmodule Ollama.Blob do
   @doc """
   Generates a SHA256 digest of a binary blob.
 
-  ## Example
+  ## Parameters
+
+  - `blob` - Raw binary data
+
+  ## Examples
 
       iex> Ollama.Blob.digest("hello")
       "sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+
+  ## Returns
+
+  - `t:digest/0` - SHA256 digest string
+
+  ## See Also
+
+  - `Ollama.check_blob/2` - Check blob existence
   """
   @spec digest(binary()) :: digest()
   def digest(blob) when is_binary(blob) do
     digest = :crypto.hash(:sha256, blob) |> Base.encode16(case: :lower)
     "sha256:" <> digest
   end
-
 end

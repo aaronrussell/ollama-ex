@@ -2,9 +2,9 @@
 
 ![Ollama-ex](https://raw.githubusercontent.com/lebrunel/ollama-ex/main/media/poster.webp)
 
-![Hex.pm](https://img.shields.io/hexpm/v/ollama?color=informational)
-![License](https://img.shields.io/github/license/lebrunel/ollama-ex?color=informational)
-![Build Status](https://img.shields.io/github/actions/workflow/status/lebrunel/ollama-ex/elixir.yml?branch=main)
+[![Hex.pm](https://img.shields.io/hexpm/v/ollama?color=informational)](https://hex.pm/packages/ollama)
+[![License](https://img.shields.io/github/license/lebrunel/ollama-ex?color=informational)](https://github.com/lebrunel/ollama-ex/blob/main/LICENSE)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/lebrunel/ollama-ex/elixir.yml?branch=main)](https://github.com/lebrunel/ollama-ex/actions)
 
 [Ollama](https://ollama.ai) is a powerful tool for running large language models locally or on your own infrastructure. This library provides an interface for working with Ollama in Elixir.
 
