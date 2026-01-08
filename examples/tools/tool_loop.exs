@@ -1,7 +1,16 @@
 # Agentic Tool Loop Example
-Mix.install([{:ollama, "~> 0.9"}, {:jason, "~> 1.4"}])
+root = Path.expand("../..", __DIR__)
 
-defmodule Agent do
+ollama_dep =
+  if File.exists?(Path.join(root, "mix.exs")) do
+    {:ollama, path: root}
+  else
+    {:ollama, "~> 0.10.0"}
+  end
+
+Mix.install([ollama_dep, {:jason, "~> 1.4"}])
+
+defmodule ToolAgent do
   @tools [
     %{
       type: "function",
@@ -63,17 +72,39 @@ defmodule Agent do
     end
   end
 
-  defp execute_tool(%{
-         "function" => %{"name" => "calculator", "arguments" => %{"expression" => expr}}
-       }) do
+  defp execute_tool(%{"function" => %{"name" => "calculator", "arguments" => args}}) do
     # WARNING: Never eval untrusted input in production!
-    {result, _} = Code.eval_string(expr)
-    to_string(result)
+    args = decode_args(args)
+    expr = Map.get(args, "expression", "")
+
+    if expr == "" do
+      "Missing expression"
+    else
+      try do
+        {result, _} = Code.eval_string(expr)
+        to_string(result)
+      rescue
+        _ -> "Error evaluating expression"
+      end
+    end
   end
 
   defp execute_tool(%{"function" => %{"name" => "get_date"}}) do
     Date.utc_today() |> to_string()
   end
+
+  defp execute_tool(_), do: "Unsupported tool call"
+
+  defp decode_args(args) when is_map(args), do: args
+
+  defp decode_args(args) when is_binary(args) do
+    case Jason.decode(args) do
+      {:ok, decoded} when is_map(decoded) -> decoded
+      _ -> %{}
+    end
+  end
+
+  defp decode_args(_), do: %{}
 end
 
-Agent.run("What is 15 * 37 + 42? Also, what's today's date?")
+ToolAgent.run("What is 15 * 37 + 42? Also, what's today's date?")

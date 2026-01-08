@@ -1175,7 +1175,7 @@ defmodule Ollama do
   # Builds the request from the given params
   @spec req(client(), atom(), Req.url(), keyword()) :: req_response()
   defp req(%__MODULE__{req: req}, method, url, opts \\ []) do
-    opts = Keyword.merge(opts, method: method, url: url)
+    opts = Keyword.merge(opts, method: method, url: normalize_url(url))
     stream_opt = get_in(opts, [:json, :stream])
     dest = if is_pid(stream_opt), do: stream_opt, else: self()
 
@@ -1201,6 +1201,10 @@ defmodule Ollama do
         Req.request(req, opts)
     end
   end
+
+  defp normalize_url(%URI{} = uri), do: uri
+  defp normalize_url(url) when is_binary(url), do: String.trim_leading(url, "/")
+  defp normalize_url(url), do: url
 
   # Normalizes the response returned from the request
   @spec res(req_response()) :: response()

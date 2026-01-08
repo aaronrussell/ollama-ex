@@ -60,9 +60,9 @@ defmodule Ollama.MixProject do
         {"LICENSE", title: "License"}
       ],
       groups_for_extras: [
-        Overview: ["README.md"],
+        Overview: ["overview"],
         Guides: ~r/guides\/.*/,
-        Examples: ~r/examples\/README\.md/,
+        Examples: ["examples"],
         Project: ["LICENSE"]
       ],
       groups_for_modules: [

@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+set -euo pipefail
+IFS=$'\n\t'
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+usage() {
+  cat <<'USAGE'
+Usage: examples/run_all.sh [options]
+
+Options:
+  --skip-interactive  Skip interactive examples (chat history)
+  --skip-liveview     Skip LiveView example (prints snippet if LiveView isn't available)
+  --skip-check        Skip Ollama server connectivity check
+  --skip-pull         Skip model pull/check step
+  -h, --help          Show this help
+
+Environment:
+  OLLAMA_HOST          Base URL for Ollama (default: http://localhost:11434)
+  ELIXIR_BIN           Elixir executable (default: elixir)
+USAGE
+}
+
+skip_interactive=false
+skip_liveview=false
+skip_check=false
+skip_pull=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --skip-interactive)
+      skip_interactive=true
+      shift
+      ;;
+    --skip-liveview)
+      skip_liveview=true
+      shift
+      ;;
+    --skip-check)
+      skip_check=true
+      shift
+      ;;
+    --skip-pull)
+      skip_pull=true
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+OLLAMA_HOST="${OLLAMA_HOST:-http://localhost:11434}"
+OLLAMA_HOST="${OLLAMA_HOST%/}"
+if [[ "$OLLAMA_HOST" == */api ]]; then
+  OLLAMA_HOST="${OLLAMA_HOST%/api}"
+fi
+export OLLAMA_HOST
+ELIXIR_BIN="${ELIXIR_BIN:-elixir}"
+
+if [[ "$skip_check" == "false" ]]; then
+  if command -v curl >/dev/null 2>&1; then
+    if ! curl -fsS "${OLLAMA_HOST}/api/tags" >/dev/null 2>&1; then
+      echo "Ollama server not reachable at ${OLLAMA_HOST}." >&2
+      echo "Start Ollama or set OLLAMA_HOST, or rerun with --skip-check." >&2
+      exit 1
+    fi
+  else
+    echo "curl not found; skipping Ollama connectivity check." >&2
+  fi
+fi
+
+declare -a examples=(
+  "basic/chat.exs"
+  "basic/completion.exs"
+  "basic/list_models.exs"
+  "streaming/chat_stream.exs"
+  "structured/json_schema.exs"
+  "tools/basic_tools.exs"
+  "tools/tool_loop.exs"
+  "thinking/basic_thinking.exs"
+  "embeddings/similarity.exs"
+  "advanced/genserver_integration.exs"
+)
+
+declare -a skipped=()
+
+if [[ "$skip_interactive" == "true" ]]; then
+  skipped+=("conversations/chat_history.exs")
+fi
+
+if [[ "$skip_liveview" == "true" ]]; then
+  skipped+=("streaming/liveview_chat.ex")
+fi
+
+if [[ ${#skipped[@]} -gt 0 ]]; then
+  echo "Skipping: ${skipped[*]}"
+fi
+
+cd "$ROOT_DIR"
+
+if [[ "$skip_pull" == "false" ]]; then
+  if command -v ollama >/dev/null 2>&1; then
+    if ollama_models=$(ollama list | awk 'NR>1 {print $1}'); then
+      ensure_model() {
+        local model="$1"
+        if ! echo "$ollama_models" | grep -Eq "^${model}(:|$)"; then
+          echo "[ollama] Pulling ${model}..."
+          ollama pull "$model"
+          ollama_models=$(ollama list | awk 'NR>1 {print $1}')
+        fi
+      }
+
+      ensure_model "llama3.2"
+      ensure_model "nomic-embed-text"
+    else
+      echo "ollama list failed; skipping model checks."
+      echo "If examples fail, run: ollama pull llama3.2 nomic-embed-text"
+    fi
+  else
+    echo "ollama CLI not found; skipping model checks."
+    echo "If examples fail, run: ollama pull llama3.2 nomic-embed-text"
+  fi
+fi
+
+run_example() {
+  local example="$1"
+  echo ""
+  echo "==> examples/${example}"
+  "$ELIXIR_BIN" "$SCRIPT_DIR/$example"
+}
+
+run_example_with_input() {
+  local example="$1"
+  local input="$2"
+  echo ""
+  echo "==> examples/${example}"
+  printf "%b" "$input" | "$ELIXIR_BIN" "$SCRIPT_DIR/$example"
+}
+
+for example in "${examples[@]}"; do
+  run_example "$example"
+done
+
+if [[ "$skip_interactive" == "false" ]]; then
+  run_example_with_input "conversations/chat_history.exs" "Hello!\nquit\n"
+fi
+
+if [[ "$skip_liveview" == "false" ]]; then
+  run_example "streaming/liveview_chat.ex"
+fi

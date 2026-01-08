@@ -1,7 +1,16 @@
 # Basic Chat Example
 # Run with: elixir examples/basic/chat.exs
 
-Mix.install([{:ollama, "~> 0.9"}])
+root = Path.expand("../..", __DIR__)
+
+ollama_dep =
+  if File.exists?(Path.join(root, "mix.exs")) do
+    {:ollama, path: root}
+  else
+    {:ollama, "~> 0.10.0"}
+  end
+
+Mix.install([ollama_dep])
 
 client = Ollama.init()
 

@@ -1,3 +1,4 @@
+liveview_source = ~S"""
 defmodule MyAppWeb.ChatLive do
   use Phoenix.LiveView
 
@@ -26,12 +27,12 @@ defmodule MyAppWeb.ChatLive do
      )}
   end
 
-  def handle_info({pid, {:data, %{"done" => false} = chunk}}, socket) do
+  def handle_info({_pid, {:data, %{"done" => false} = chunk}}, socket) do
     content = get_in(chunk, ["message", "content"]) || ""
     {:noreply, update(socket, :response, &(&1 <> content))}
   end
 
-  def handle_info({pid, {:data, %{"done" => true}}}, socket) do
+  def handle_info({_pid, {:data, %{"done" => true}}}, socket) do
     messages =
       socket.assigns.messages ++
         [
@@ -45,4 +46,15 @@ defmodule MyAppWeb.ChatLive do
     Process.demonitor(ref, [:flush])
     {:noreply, socket}
   end
+end
+"""
+
+if Code.ensure_loaded?(Phoenix.LiveView) do
+  Code.eval_string(liveview_source)
+else
+  IO.puts(
+    "Phoenix LiveView not available. Add phoenix_live_view and ollama to your app and paste:"
+  )
+
+  IO.puts(liveview_source)
 end

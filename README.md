@@ -45,7 +45,8 @@ end
 
 ## Quickstart
 
-For more examples, refer to the [Ollama documentation](https://hexdocs.pm/ollama).
+For more examples, refer to the [Ollama documentation](https://hexdocs.pm/ollama) or the
+[`examples/`](examples/README.md) directory.
 
 ### 1. Generate a completion
 
@@ -53,7 +54,7 @@ For more examples, refer to the [Ollama documentation](https://hexdocs.pm/ollama
 client = Ollama.init()
 
 Ollama.completion(client, [
-  model: "llama2",
+  model: "llama3.2",
   prompt: "Why is the sky blue?",
 ])
 # {:ok, %{"response" => "The sky is blue because it is the color of the sky.", ...}}
@@ -63,7 +64,7 @@ Ollama.completion(client, [
 
 ```elixir
 Ollama.chat(client, [
-  model: "llama2",
+  model: "llama3.2",
   messages: [
     %{role: "system", content: "You are a helpful assistant."},
     %{role: "user", content: "Why is the sky blue?"},
@@ -83,7 +84,7 @@ The `:format` option can be used with both `completion/2` and `chat/2`.
 
 ```elixir
 Ollama.completion(client, [
-  model: "llama3.1",
+  model: "llama3.2",
   prompt: "Tell me about Canada",
   format: %{
     type: "object",
@@ -97,6 +98,62 @@ Ollama.completion(client, [
 ])
 # {:ok, %{"response" => "{ \"name\": \"Canada\" ,\"capital\": \"Ottawa\" ,\"languages\": [\"English\", \"French\"] }", ...}}
 ```
+
+## Client configuration
+
+Create a client with a custom host or headers:
+
+```elixir
+client = Ollama.init("http://localhost:11434")
+client = Ollama.init(headers: [{"x-some-header", "some-value"}])
+client = Ollama.init(receive_timeout: 120_000)
+```
+
+You can also build a custom `Req.Request` and pass it through:
+
+```elixir
+req = Req.new(base_url: "http://localhost:11434/api", headers: [{"x-env", "dev"}])
+client = Ollama.init(req)
+```
+
+Environment variables:
+
+- `OLLAMA_HOST` sets the default host (e.g. `http://localhost:11434`)
+- `OLLAMA_API_KEY` provides a bearer token for the hosted API
+
+## Concurrent requests
+
+Ollama calls are synchronous. Use tasks to run concurrent requests:
+
+```elixir
+prompts = [
+  "Why is the sky blue?",
+  "Explain gravity in one sentence."
+]
+
+responses =
+  prompts
+  |> Task.async_stream(fn prompt ->
+    Ollama.chat(Ollama.init(),
+      model: "llama3.2",
+      messages: [%{role: "user", content: prompt}]
+    )
+  end,
+    max_concurrency: 4,
+    timeout: 60_000
+  )
+  |> Enum.to_list()
+```
+
+## Examples
+
+Run all examples against a local Ollama server:
+
+```bash
+./examples/run_all.sh
+```
+
+See [`examples/README.md`](examples/README.md) for details and individual runs.
 
 ## Cloud Models and Hosted API
 
@@ -190,7 +247,7 @@ When `:stream` is set to `true`, a lazy `t:Enumerable.t/0` is returned, which ca
 
 ```elixir
 {:ok, stream} = Ollama.completion(client, [
-  model: "llama2",
+  model: "llama3.2",
   prompt: "Why is the sky blue?",
   stream: true,
 ])
@@ -213,7 +270,7 @@ defmodule MyApp.ChatLive do
   # asynchronously send messages back to self.
   def handle_event("prompt", %{"message" => prompt}, socket) do
     {:ok, task} = Ollama.completion(Ollama.init(), [
-      model: "llama2",
+      model: "llama3.2",
       prompt: prompt,
       stream: self(),
     ])
@@ -248,7 +305,9 @@ Regardless of the streaming approach used, each streaming message is a plain `t:
 
 ## Function calling
 
-Ollama 0.3 and later versions support tool use and function calling on compatible models. Note that Ollama currently doesn't support tool use with streaming requests, so avoid setting `:stream` to `true`.
+Ollama 0.3 and later versions support tool use and function calling on compatible models.
+Tool calling is model-dependent, so check the model card if you do not see `tool_calls` in responses.
+Ollama currently doesn't support tool use with streaming requests, so avoid setting `:stream` to `true`.
 
 Using tools typically involves at least two round-trip requests to the model. Begin by defining one or more tools using a schema similar to ChatGPT's. Provide clear and concise descriptions for the tool and each argument.
 
@@ -276,7 +335,7 @@ The first round-trip involves sending a prompt in a chat with the tool definitio
 
 ```elixir
 Ollama.chat(client, [
-  model: "mistral-nemo",
+  model: "llama3.2",
   messages: [
     %{role: "user", content: "What is the current stock price for Apple?"}
   ],
@@ -298,7 +357,7 @@ Your implementation must intercept these tool calls and execute a corresponding 
 
 ```elixir
 Ollama.chat(client, [
-  model: "mistral-nemo",
+  model: "llama3.2",
   messages: [
     %{role: "user", content: "What is the current stock price for Apple?"},
     %{role: "assistant", content: "", tool_calls: [%{"function" => %{"name" => "get_stock_price", "arguments" => %{"ticker" => "AAPL"}}}]},
@@ -313,6 +372,23 @@ Ollama.chat(client, [
 ```
 
 After receiving the function tool's value, the model will respond to the user's original prompt, incorporating the function result into its response.
+
+## API surface
+
+The client mirrors the Ollama REST API:
+
+```elixir
+Ollama.chat(client, model: "llama3.2", messages: [%{role: "user", content: "Hello"}])
+Ollama.completion(client, model: "llama3.2", prompt: "Hello")
+Ollama.list_models(client)
+Ollama.show_model(client, name: "llama3.2")
+Ollama.create_model(client, name: "example", from: "llama3.2", system: "You are Mario.")
+Ollama.copy_model(client, source: "llama3.2", destination: "user/llama3.2")
+Ollama.delete_model(client, name: "llama3.2")
+Ollama.pull_model(client, name: "llama3.2")
+Ollama.push_model(client, name: "user/llama3.2")
+Ollama.embed(client, model: "nomic-embed-text", input: "The sky is blue.")
+```
 
 ## License
 

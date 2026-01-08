@@ -1,5 +1,14 @@
 # JSON Schema Structured Output
-Mix.install([{:ollama, "~> 0.9"}, {:jason, "~> 1.4"}])
+root = Path.expand("../..", __DIR__)
+
+ollama_dep =
+  if File.exists?(Path.join(root, "mix.exs")) do
+    {:ollama, path: root}
+  else
+    {:ollama, "~> 0.10.0"}
+  end
+
+Mix.install([ollama_dep, {:jason, "~> 1.4"}])
 
 client = Ollama.init()
 
@@ -23,6 +32,12 @@ country_schema = %{
   )
 
 json_content = response["message"]["content"]
-{:ok, country} = Jason.decode(json_content)
 
-IO.inspect(country, label: "Structured Country Data")
+case Jason.decode(json_content) do
+  {:ok, country} ->
+    IO.inspect(country, label: "Structured Country Data")
+
+  {:error, _} ->
+    IO.puts("Model returned non-JSON output:")
+    IO.puts(json_content)
+end
