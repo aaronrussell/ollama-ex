@@ -11,8 +11,8 @@ Examples demonstrating ollama-ex features, designed to run against a real Ollama
 The runner will:
 
 - Verify the Ollama server is reachable (default: `http://localhost:11434`).
-- Pull required models if the `ollama` CLI is available (`llama3.2`, `nomic-embed-text`, `llava`, `deepseek-r1:1.5b`).
-- Run every example, including the interactive chat history and LiveView module compile.
+- Pull required models if the `ollama` CLI is available (`llama3.2`, `nomic-embed-text`, `llava`, `deepseek-r1:1.5b`, `codellama:7b-code`).
+- Run every example (except the MCP stdio server), including the interactive chat history and LiveView module compile.
 - Skip cloud/web examples if `OLLAMA_API_KEY` is not set (invalid keys report 401/403).
 - Multimodal examples require a compatible model (`llava`). If not installed, they print a prompt.
 - Thinking examples use `deepseek-r1:1.5b` (supports `think`).
@@ -79,7 +79,14 @@ Sample image: `media/poster.png` (PNG/JPEG recommended for maximum compatibility
 - [web_search.exs](web/web_search.exs) - Web search (requires API key)
 - [web_fetch.exs](web/web_fetch.exs) - Web fetch (requires API key)
 
+### MCP (Model Context Protocol)
+- [mcp_server.exs](mcp/mcp_server.exs) - MCP stdio server for web_search/web_fetch (requires API key)
+  Works with any MCP client that supports stdio (Cursor, Claude Desktop, Cline, Continue, Open WebUI).
+
 ### Advanced Patterns
+- [chat_logprobs.exs](advanced/chat_logprobs.exs) - Chat log probabilities
+- [completion_logprobs.exs](advanced/completion_logprobs.exs) - Completion log probabilities
+- [fill_in_middle.exs](advanced/fill_in_middle.exs) - Fill-in-middle completion
 - [concurrent_requests.exs](advanced/concurrent_requests.exs) - Task.async_stream
 - [rate_limiting.exs](advanced/rate_limiting.exs) - Simple throttling
 - [error_handling.exs](advanced/error_handling.exs) - Request/response errors
@@ -91,5 +98,11 @@ Sample image: `media/poster.png` (PNG/JPEG recommended for maximum compatibility
 
 - Elixir 1.15+
 - Ollama installed and running (`ollama serve`)
-- Models pulled (`ollama pull llama3.2`, `ollama pull nomic-embed-text`, `ollama pull llava`, `ollama pull deepseek-r1:1.5b`)
+- Models pulled (`ollama pull llama3.2`, `ollama pull nomic-embed-text`, `ollama pull llava`, `ollama pull deepseek-r1:1.5b`, `ollama pull codellama:7b-code`)
 - For web examples: create a key at https://ollama.com/settings/keys and set `OLLAMA_API_KEY`
+
+To pull everything at once:
+
+```bash
+./examples/install_models.sh
+```

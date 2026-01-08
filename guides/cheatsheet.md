@@ -6,6 +6,14 @@
 {:ollama, "~> 0.10.0"}
 ```
 
+## Error Types
+
+```elixir
+{:error, %Ollama.ConnectionError{}}  # Server unreachable
+{:error, %Ollama.RequestError{}}     # Invalid request
+{:error, %Ollama.ResponseError{}}    # API error (4xx/5xx)
+```
+
 ## Client
 
 ```elixir
@@ -38,6 +46,7 @@ Ollama.chat(client, model: "llama3.2", messages: [%{role: "user", content: "Hi"}
 Ollama.completion(client, model: "llama3.2", prompt: "Once upon a time")
 Ollama.generate(client, model: "llama3.2", prompt: "...")  # Alias
 Ollama.completion(client, ..., suffix: "return result")    # Fill-in-middle
+Ollama.completion(client, ..., logprobs: true, top_logprobs: 3)  # Log probs
 ```
 
 ## Streaming

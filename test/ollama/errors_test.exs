@@ -1,7 +1,7 @@
 defmodule Ollama.ErrorsTest do
   use Supertester.ExUnitFoundation, isolation: :basic
 
-  alias Ollama.{Errors, RequestError, ResponseError}
+  alias Ollama.{ConnectionError, Errors, RequestError, ResponseError}
 
   describe "wrap/1" do
     test "passes through ok tuple" do
@@ -10,6 +10,11 @@ defmodule Ollama.ErrorsTest do
 
     test "passes through RequestError" do
       error = RequestError.exception("oops")
+      assert {:error, ^error} = Errors.wrap({:error, error})
+    end
+
+    test "passes through ConnectionError" do
+      error = ConnectionError.exception(reason: :econnrefused)
       assert {:error, ^error} = Errors.wrap({:error, error})
     end
 
@@ -31,6 +36,10 @@ defmodule Ollama.ErrorsTest do
       refute Errors.retryable?(ResponseError.exception(400))
     end
 
+    test "returns true for ConnectionError" do
+      assert Errors.retryable?(ConnectionError.exception(reason: :timeout))
+    end
+
     test "returns false for RequestError" do
       refute Errors.retryable?(RequestError.exception("nope"))
     end
@@ -40,6 +49,11 @@ defmodule Ollama.ErrorsTest do
     test "formats known errors" do
       error = RequestError.exception("bad")
       assert Errors.error_message(error) == "bad"
+    end
+
+    test "formats connection errors" do
+      error = ConnectionError.exception(reason: :econnrefused)
+      assert String.contains?(Errors.error_message(error), "Could not connect to Ollama")
     end
   end
 
@@ -52,6 +66,11 @@ defmodule Ollama.ErrorsTest do
     test "formats ResponseError" do
       error = ResponseError.exception(status: 500, body: %{"error" => "boom"})
       assert Errors.format_for_log(error) == "[Ollama.ResponseError] HTTP 500: boom"
+    end
+
+    test "formats ConnectionError" do
+      error = ConnectionError.exception(reason: :timeout)
+      assert String.contains?(Errors.format_for_log(error), "[Ollama.ConnectionError]")
     end
   end
 end

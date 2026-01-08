@@ -11,7 +11,8 @@ defmodule OllamaTest do
     test "default client" do
       client = Ollama.init()
       assert "http://localhost:11434/api" = client.req.options.base_url
-      assert %{"user-agent" => _val} = client.req.headers
+      assert %{"user-agent" => [user_agent]} = client.req.headers
+      assert user_agent == expected_user_agent()
     end
 
     test "client with custom base url" do
@@ -665,5 +666,28 @@ defmodule OllamaTest do
 
   defp model_value(model, key) when is_atom(key) do
     Map.get(model, key) || Map.get(model, Atom.to_string(key))
+  end
+
+  defp expected_user_agent do
+    version = Mix.Project.config()[:version]
+
+    arch =
+      :erlang.system_info(:system_architecture)
+      |> to_string()
+      |> String.split("-", parts: 2)
+      |> hd()
+
+    os = system_os()
+
+    "ollama-ex/#{version} (#{arch} #{os}) Elixir/#{System.version()} OTP/#{System.otp_release()}"
+  end
+
+  defp system_os do
+    case :os.type() do
+      {:unix, :darwin} -> "darwin"
+      {:unix, :linux} -> "linux"
+      {:win32, _} -> "windows"
+      {_, name} -> to_string(name)
+    end
   end
 end

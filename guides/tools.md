@@ -186,7 +186,11 @@ end
 
 ## Web Tools Integration
 
-Use predefined web tools for search and fetch:
+Use predefined web tools for search and fetch.
+
+For an MCP (Model Context Protocol) stdio server example, see
+`examples/mcp/mcp_server.exs`. This exposes web_search and web_fetch to
+MCP clients like Cursor, Cline, and Open WebUI.
 
 ```elixir
 # Get all web tool definitions

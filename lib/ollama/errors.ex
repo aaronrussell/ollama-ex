@@ -4,17 +4,20 @@ defmodule Ollama.Errors do
 
   ## Error Types
 
+    * `Ollama.ConnectionError` - Connection errors (server unreachable)
     * `Ollama.RequestError` - Pre-request validation errors
     * `Ollama.ResponseError` - API response errors
   """
 
-  alias Ollama.{RequestError, ResponseError}
+  alias Ollama.{ConnectionError, RequestError, ResponseError}
 
   @doc """
   Wrap a function result, converting errors to appropriate types.
   """
-  @spec wrap(term()) :: {:ok, term()} | {:error, RequestError.t() | ResponseError.t()}
+  @spec wrap(term()) ::
+          {:ok, term()} | {:error, ConnectionError.t() | RequestError.t() | ResponseError.t()}
   def wrap({:ok, _} = success), do: success
+  def wrap({:error, %ConnectionError{}} = error), do: error
   def wrap({:error, %RequestError{}} = error), do: error
   def wrap({:error, %ResponseError{}} = error), do: error
 
@@ -26,14 +29,17 @@ defmodule Ollama.Errors do
   @doc """
   Check if an error is retryable.
   """
-  @spec retryable?(RequestError.t() | ResponseError.t()) :: boolean()
+  @spec retryable?(ConnectionError.t() | RequestError.t() | ResponseError.t()) :: boolean()
+  def retryable?(%ConnectionError{}), do: true
   def retryable?(%ResponseError{} = e), do: ResponseError.retryable?(e)
   def retryable?(%RequestError{}), do: false
 
   @doc """
   Get error message from any error type.
   """
-  @spec error_message(RequestError.t() | ResponseError.t() | term()) :: String.t()
+  @spec error_message(ConnectionError.t() | RequestError.t() | ResponseError.t() | term()) ::
+          String.t()
+  def error_message(%ConnectionError{} = e), do: Exception.message(e)
   def error_message(%RequestError{} = e), do: Exception.message(e)
   def error_message(%ResponseError{} = e), do: Exception.message(e)
   def error_message(other), do: inspect(other)
@@ -41,7 +47,11 @@ defmodule Ollama.Errors do
   @doc """
   Format error for logging.
   """
-  @spec format_for_log(RequestError.t() | ResponseError.t()) :: String.t()
+  @spec format_for_log(ConnectionError.t() | RequestError.t() | ResponseError.t()) :: String.t()
+  def format_for_log(%ConnectionError{} = e) do
+    "[Ollama.ConnectionError] #{Exception.message(e)}"
+  end
+
   def format_for_log(%RequestError{} = e) do
     "[Ollama.RequestError] #{Exception.message(e)}"
   end

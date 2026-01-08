@@ -106,6 +106,9 @@ declare -a examples=(
   "model_management/preload_unload.exs"
   "web/web_search.exs"
   "web/web_fetch.exs"
+  "advanced/chat_logprobs.exs"
+  "advanced/completion_logprobs.exs"
+  "advanced/fill_in_middle.exs"
   "advanced/concurrent_requests.exs"
   "advanced/rate_limiting.exs"
   "advanced/error_handling.exs"
@@ -131,29 +134,7 @@ fi
 cd "$ROOT_DIR"
 
 if [[ "$skip_pull" == "false" ]]; then
-  if command -v ollama >/dev/null 2>&1; then
-    if ollama_models=$(ollama list | awk 'NR>1 {print $1}'); then
-      ensure_model() {
-        local model="$1"
-        if ! echo "$ollama_models" | grep -Eq "^${model}(:|$)"; then
-          echo "[ollama] Pulling ${model}..."
-          ollama pull "$model"
-          ollama_models=$(ollama list | awk 'NR>1 {print $1}')
-        fi
-      }
-
-      ensure_model "llama3.2"
-      ensure_model "nomic-embed-text"
-      ensure_model "llava"
-      ensure_model "deepseek-r1:1.5b"
-    else
-      echo "ollama list failed; skipping model checks."
-      echo "If examples fail, run: ollama pull llama3.2 nomic-embed-text"
-    fi
-  else
-    echo "ollama CLI not found; skipping model checks."
-    echo "If examples fail, run: ollama pull llama3.2 nomic-embed-text"
-  fi
+  "$SCRIPT_DIR/install_models.sh"
 fi
 
 run_example() {

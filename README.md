@@ -31,6 +31,13 @@ For examples, also pull:
 - `ollama pull nomic-embed-text` (embeddings)
 - `ollama pull llava` (multimodal)
 - `ollama pull deepseek-r1:1.5b` (thinking)
+- `ollama pull codellama:7b-code` (fill-in-middle)
+
+Or pull everything at once:
+
+```bash
+./examples/install_models.sh
+```
 
 Thinking examples use `deepseek-r1:1.5b`, which supports `think`.
 
@@ -361,6 +368,7 @@ All functions return `{:ok, result}` or `{:error, reason}`:
 ```elixir
 case Ollama.chat(client, model: "not-found", messages: [%{role: "user", content: "Hi"}]) do
   {:ok, response} -> response
+  {:error, %Ollama.ConnectionError{} = error} -> IO.puts("Connection error: #{Exception.message(error)}")
   {:error, %Ollama.RequestError{} = error} -> IO.puts("Request error: #{Exception.message(error)}")
   {:error, %Ollama.ResponseError{} = error} -> IO.puts("Response error: #{Exception.message(error)}")
 end
@@ -399,6 +407,7 @@ Ollama.web_fetch(client, url: "https://elixir-lang.org")
 ## Examples and Guides
 
 - [Examples](examples/README.md)
+- MCP Server (`examples/mcp/mcp_server.exs`) - Works with any MCP client that supports stdio (Cursor, Claude Desktop, Cline, Continue, Open WebUI)
 - [Getting Started](guides/getting-started.md)
 - [Streaming](guides/streaming.md)
 - [Tools](guides/tools.md)

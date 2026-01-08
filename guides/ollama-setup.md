@@ -324,7 +324,8 @@ mix test --include cloud_api
 
 ## Troubleshooting
 
-- `connection refused`: ensure `ollama serve` is running and reachable.
+- `Ollama.ConnectionError`: ensure `ollama serve` is running and reachable.
+  The error message includes a download link if Ollama is not installed.
 - Wrong host/port: set `OLLAMA_HOST` or pass a URL to `Ollama.init/1`.
 - Auth errors: confirm your API key and target host.
 

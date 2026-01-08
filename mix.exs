@@ -73,7 +73,13 @@ defmodule Ollama.MixProject do
       ],
       groups_for_modules: [
         Client: [Ollama],
-        Errors: [Ollama.RequestError, Ollama.ResponseError, Ollama.Errors, Ollama.Retry],
+        Errors: [
+          Ollama.ConnectionError,
+          Ollama.RequestError,
+          Ollama.ResponseError,
+          Ollama.Errors,
+          Ollama.Retry
+        ],
         Helpers: [Ollama.Image, Ollama.Tool, Ollama.Options, Ollama.Options.Presets],
         Web: [
           Ollama.Web,

@@ -76,7 +76,10 @@ IO.inspect(response.links, label: "Links")
 
 ## Web Tools for Agents
 
-Use web capabilities as tools in agentic workflows:
+Use web capabilities as tools in agentic workflows.
+
+See `examples/mcp/mcp_server.exs` for an MCP stdio server that exposes
+web_search and web_fetch to MCP clients (Cursor, Cline, Open WebUI, etc.).
 
 ```elixir
 # Get predefined web tool definitions

@@ -48,6 +48,7 @@ defmodule Ollama do
 
       case Ollama.chat(client, opts) do
         {:ok, response} -> handle_success(response)
+        {:error, %Ollama.ConnectionError{} = error} -> handle_connection(error)
         {:error, %Ollama.ResponseError{status: 404}} -> handle_not_found()
         {:error, %Ollama.ResponseError{status: status}} -> handle_error(status)
       end
@@ -58,7 +59,7 @@ defmodule Ollama do
   - [Ollama API Docs](https://github.com/ollama/ollama/blob/main/docs/api.md)
   """
   use Ollama.Schemas
-  alias Ollama.{Blob, Image, Options, RequestError, ResponseError, Tool, Web}
+  alias Ollama.{Blob, ConnectionError, Image, Options, RequestError, ResponseError, Tool, Web}
   defstruct [:req]
 
   @typedoc "Client struct"
@@ -211,7 +212,7 @@ defmodule Ollama do
       |> Keyword.get(:base_url, Keyword.get(opts, :host, System.get_env("OLLAMA_HOST")))
       |> normalize_base_url()
 
-    base_headers = [{"user-agent", "ollama-ex/#{@version}"}]
+    base_headers = [{"user-agent", user_agent()}]
 
     api_key_headers =
       if api_key do
@@ -230,6 +231,27 @@ defmodule Ollama do
     |> Keyword.put(:headers, merged_headers)
     |> Keyword.put_new(:receive_timeout, 60_000)
     |> Req.new()
+  end
+
+  defp user_agent do
+    arch =
+      :erlang.system_info(:system_architecture)
+      |> to_string()
+      |> String.split("-", parts: 2)
+      |> hd()
+
+    os = user_agent_os()
+
+    "ollama-ex/#{@version} (#{arch} #{os}) Elixir/#{System.version()} OTP/#{System.otp_release()}"
+  end
+
+  defp user_agent_os do
+    case :os.type() do
+      {:unix, :darwin} -> "darwin"
+      {:unix, :linux} -> "linux"
+      {:win32, _} -> "windows"
+      {_, name} -> to_string(name)
+    end
   end
 
   defp ensure_api_suffix(url) when is_binary(url) do
@@ -1726,12 +1748,8 @@ defmodule Ollama do
     {:error, ResponseError.exception(status)}
   end
 
-  defp res({:error, %Req.TransportError{reason: reason}}) do
-    {:error,
-     RequestError.exception(
-       message: "Connection failed: #{inspect(reason)}",
-       reason: :connection_error
-     )}
+  defp res({:error, %Req.TransportError{} = error}) do
+    {:error, ConnectionError.exception(original_error: error)}
   end
 
   defp res({:error, error}) do
@@ -1747,12 +1765,8 @@ defmodule Ollama do
 
   defp res_blob({:ok, %{status: status}}, _digest), do: {:error, ResponseError.exception(status)}
 
-  defp res_blob({:error, %Req.TransportError{reason: reason}}, _digest) do
-    {:error,
-     RequestError.exception(
-       message: "Connection failed: #{inspect(reason)}",
-       reason: :connection_error
-     )}
+  defp res_blob({:error, %Req.TransportError{} = error}, _digest) do
+    {:error, ConnectionError.exception(original_error: error)}
   end
 
   defp res_blob({:error, error}, _digest), do: {:error, RequestError.exception(inspect(error))}
@@ -1762,12 +1776,8 @@ defmodule Ollama do
   defp res_status({:ok, %{status: status}}) when status in 200..299, do: {:ok, true}
   defp res_status({:ok, %{status: _status}}), do: {:ok, false}
 
-  defp res_status({:error, %Req.TransportError{reason: reason}}) do
-    {:error,
-     RequestError.exception(
-       message: "Connection failed: #{inspect(reason)}",
-       reason: :connection_error
-     )}
+  defp res_status({:error, %Req.TransportError{} = error}) do
+    {:error, ConnectionError.exception(original_error: error)}
   end
 
   defp res_status({:error, error}), do: {:error, RequestError.exception(inspect(error))}
