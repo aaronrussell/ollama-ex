@@ -18,7 +18,13 @@ defmodule Conversation do
 
   defp loop(client, messages) do
     IO.write("You: ")
-    input = IO.gets("") |> String.trim()
+
+    input =
+      case IO.gets("") do
+        :eof -> "quit"
+        {:error, _} -> "quit"
+        data -> String.trim(data)
+      end
 
     if input == "quit" do
       IO.puts("Goodbye!")

@@ -6,34 +6,32 @@
 [![License](https://img.shields.io/github/license/lebrunel/ollama-ex?color=informational)](https://github.com/lebrunel/ollama-ex/blob/main/LICENSE)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/lebrunel/ollama-ex/elixir.yml?branch=main)](https://github.com/lebrunel/ollama-ex/actions)
 
-[Ollama](https://ollama.com) is a powerful tool for running large language models locally or on your own infrastructure. This library provides an interface for working with Ollama in Elixir.
+[Ollama](https://ollama.com) runs large language models locally or on your infrastructure.
+This library provides a first-class Elixir client with feature parity to the official
+ollama-python library.
 
-- 🦙 Full implementation of the Ollama API
-- 🧠 Extended thinking
-- 🧰 Tool use (function calling)
-- 🧱 Structured outputs
-- 🛜 Streaming requests
-  - Stream to an Enumerable
-  - Or stream messages to any Elixir process
+## Features
+
+- Chat, generate, embeddings, and full model management API coverage
+- Streaming to an `Enumerable` or directly to any process
+- Tool use (function calling) + function-to-tool helpers
+- Structured outputs (JSON or JSON Schema)
+- Multimodal image support with automatic Base64 encoding
+- Typed responses (`response_format: :struct`) and typed options (`Ollama.Options`)
+- Cloud API: web search and web fetch
 
 ## Prerequisites
 
-1. **Install Ollama**
-   - https://ollama.com/download
-2. **Start the server (if it is not already running)**
-   - `ollama serve`
-3. **Pull a model**
-   - `ollama pull llama3.2`
-   - Browse models at https://ollama.com/search
+1. Install Ollama: https://ollama.com/download
+2. Start the server (if needed): `ollama serve`
+3. Pull a model: `ollama pull llama3.2`
 
-For full setup details, including cloud usage, see
+For full setup details (including cloud usage and Linux manual install), see
 [Ollama Server Setup](guides/ollama-setup.md).
 
 ## Installation
 
 Requires Elixir 1.15+.
-
-The package can be installed by adding `ollama` to your list of dependencies in `mix.exs`.
 
 ```elixir
 def deps do
@@ -45,120 +43,214 @@ end
 
 ## Quickstart
 
-For more examples, refer to the [Ollama documentation](https://hexdocs.pm/ollama) or the
-[`examples/`](examples/README.md) directory.
-
-### 1. Generate a completion
+### 1. Chat
 
 ```elixir
 client = Ollama.init()
 
-Ollama.completion(client, [
+{:ok, response} = Ollama.chat(client,
   model: "llama3.2",
-  prompt: "Why is the sky blue?",
-])
-# {:ok, %{"response" => "The sky is blue because it is the color of the sky.", ...}}
+  messages: [%{role: "user", content: "Why is the sky blue?"}]
+)
+
+IO.puts(response["message"]["content"])
 ```
 
-### 2. Generate the next message in a chat
+### 2. Completion
 
 ```elixir
-Ollama.chat(client, [
+{:ok, response} = Ollama.completion(client,
   model: "llama3.2",
-  messages: [
-    %{role: "system", content: "You are a helpful assistant."},
-    %{role: "user", content: "Why is the sky blue?"},
-    %{role: "assistant", content: "Due to rayleigh scattering."},
-    %{role: "user", content: "How is that different than mie scattering?"},
-  ]
-])
-# {:ok, %{"message" => %{
-#   "role" => "assistant",
-#   "content" => "Mie scattering affects all wavelengths similarly, while Rayleigh favors shorter ones."
-# }, ...}}
+  prompt: "The capital of France is"
+)
+
+IO.puts(response["response"])
 ```
 
-### 3. Generate structured data
-
-The `:format` option can be used with both `completion/2` and `chat/2`.
+### 3. Structured output
 
 ```elixir
-Ollama.completion(client, [
+schema = %{
+  type: "object",
+  properties: %{
+    name: %{type: "string"},
+    capital: %{type: "string"},
+    languages: %{type: "array", items: %{type: "string"}}
+  },
+  required: ["name", "capital", "languages"]
+}
+
+{:ok, response} = Ollama.chat(client,
   model: "llama3.2",
-  prompt: "Tell me about Canada",
-  format: %{
-    type: "object",
-    properties: %{
-      name: %{type: "string"},
-      capital: %{type: "string"},
-      languages: %{type: "array", items: %{type: "string"}},
-    },
-    required: ["name", "capital", "languages"]
-  }
-])
-# {:ok, %{"response" => "{ \"name\": \"Canada\" ,\"capital\": \"Ottawa\" ,\"languages\": [\"English\", \"French\"] }", ...}}
+  messages: [%{role: "user", content: "Tell me about Canada."}],
+  format: schema
+)
+
+{:ok, data} = Jason.decode(response["message"]["content"])
+IO.inspect(data)
 ```
 
-## Client configuration
+## Typed responses
 
-Create a client with a custom host or headers:
+Return response structs instead of maps by setting `response_format: :struct`:
 
 ```elixir
-client = Ollama.init("http://localhost:11434")
-client = Ollama.init(headers: [{"x-some-header", "some-value"}])
-client = Ollama.init(receive_timeout: 120_000)
+{:ok, response} = Ollama.chat(client,
+  model: "llama3.2",
+  messages: [%{role: "user", content: "Summarize Elixir."}],
+  response_format: :struct
+)
+
+IO.puts(response.message.content)
 ```
 
-You can also build a custom `Req.Request` and pass it through:
+You can also set a default:
 
 ```elixir
-req = Req.new(base_url: "http://localhost:11434/api", headers: [{"x-env", "dev"}])
-client = Ollama.init(req)
+Application.put_env(:ollama, :response_format, :struct)
 ```
 
-Environment variables:
+## Streaming
 
-- `OLLAMA_HOST` sets the default host (e.g. `http://localhost:11434`)
-- `OLLAMA_API_KEY` provides a bearer token for the hosted API
-
-## Concurrent requests
-
-Ollama calls are synchronous. Use tasks to run concurrent requests:
+### Enumerable mode
 
 ```elixir
-prompts = [
-  "Why is the sky blue?",
-  "Explain gravity in one sentence."
-]
+{:ok, stream} = Ollama.chat(client,
+  model: "llama3.2",
+  messages: [%{role: "user", content: "Tell me a short story."}],
+  stream: true
+)
 
-responses =
-  prompts
-  |> Task.async_stream(fn prompt ->
-    Ollama.chat(Ollama.init(),
-      model: "llama3.2",
-      messages: [%{role: "user", content: prompt}]
-    )
-  end,
-    max_concurrency: 4,
-    timeout: 60_000
-  )
-  |> Enum.to_list()
+stream
+|> Stream.each(fn chunk ->
+  if content = get_in(chunk, ["message", "content"]) do
+    IO.write(content)
+  end
+end)
+|> Stream.run()
 ```
 
-## Examples
+### Process mode
 
-Run all examples against a local Ollama server:
+```elixir
+{:ok, task} = Ollama.chat(client,
+  model: "llama3.2",
+  messages: [%{role: "user", content: "Stream to my process"}],
+  stream: self()
+)
+
+receive do
+  {_pid, {:data, chunk}} -> IO.inspect(chunk)
+end
+
+Task.await(task, 60_000)
+```
+
+## Multimodal images
+
+You can pass image paths, binary data, or pre-encoded Base64. The client will
+encode automatically:
+
+```elixir
+image_path = "/path/to/photo.jpg"
+
+{:ok, response} = Ollama.chat(client,
+  model: "llava",
+  messages: [%{role: "user", content: "Describe this image.", images: [image_path]}]
+)
+
+IO.puts(response["message"]["content"])
+```
+
+Use `Ollama.Image.encode/1` to pre-encode images if you prefer.
+
+## Tools (function calling)
+
+Define tools manually or use helpers:
+
+```elixir
+calculator = Ollama.Tool.define(:calculator,
+  description: "Evaluate a math expression",
+  parameters: [expression: [type: :string, required: true]]
+)
+
+{:ok, response} = Ollama.chat(client,
+  model: "llama3.2",
+  messages: [%{role: "user", content: "What is 9 * 9?"}],
+  tools: [calculator]
+)
+```
+
+You can also pass functions directly and let Ollama convert them to tools:
+
+```elixir
+defmodule MathTools do
+  @doc "Add two integers together."
+  @spec add(integer(), integer()) :: integer()
+  def add(a, b), do: a + b
+end
+
+{:ok, response} = Ollama.chat(client,
+  model: "llama3.2",
+  messages: [%{role: "user", content: "Add 4 and 7"}],
+  tools: [&MathTools.add/2]
+)
+```
+
+## Options
+
+Use the `Ollama.Options` struct or presets:
+
+```elixir
+opts =
+  Ollama.Options.Presets.creative()
+  |> Ollama.Options.temperature(0.9)
+  |> Ollama.Options.top_p(0.95)
+
+{:ok, response} = Ollama.chat(client,
+  model: "llama3.2",
+  messages: [%{role: "user", content: "Write a playful haiku."}],
+  options: opts
+)
+```
+
+## Embeddings
+
+```elixir
+{:ok, response} = Ollama.embed(client,
+  model: "nomic-embed-text",
+  input: ["The sky is blue", "The grass is green"]
+)
+
+IO.inspect(response["embeddings"])
+```
+
+## Web search and fetch (cloud API)
+
+These calls require an Ollama API key (`OLLAMA_API_KEY`):
+
+```elixir
+{:ok, results} = Ollama.web_search(client, query: "Elixir language")
+{:ok, page} = Ollama.web_fetch(client, url: "https://elixir-lang.org")
+```
+
+### Cloud API key setup
+
+1) Create an Ollama account: https://ollama.com
+2) Generate a key: https://ollama.com/settings/keys
+3) Export it:
 
 ```bash
-./examples/run_all.sh
+export OLLAMA_API_KEY="your_api_key_here"
 ```
 
-See [`examples/README.md`](examples/README.md) for details and individual runs.
+If the key is missing, web examples will skip with a helpful message. If the
+key is invalid, you will see a 401/403 response from the API.
+
+When passing headers explicitly, the `authorization` value must start with
+`Bearer `.
 
 ## Cloud Models and Hosted API
-
-Ollama provides cloud models and a hosted API. You can run cloud models through
-your local Ollama instance or call the hosted API directly.
 
 ### Use cloud models via local Ollama
 
@@ -177,16 +269,13 @@ ollama pull gpt-oss:120b-cloud
 3) Make a request:
 
 ```elixir
-client = Ollama.init()
-
-{:ok, stream} = Ollama.chat(client, [
+{:ok, stream} = Ollama.chat(client,
   model: "gpt-oss:120b-cloud",
   messages: [%{role: "user", content: "Why is the sky blue?"}],
   stream: true
-])
+)
 
-stream
-|> Stream.each(fn chunk ->
+Stream.each(stream, fn chunk ->
   IO.write(get_in(chunk, ["message", "content"]) || "")
 end)
 |> Stream.run()
@@ -224,14 +313,13 @@ curl https://ollama.com/api/tags
 ```elixir
 client = Ollama.init("https://ollama.com")
 
-{:ok, response} = Ollama.chat(client, [
+{:ok, response} = Ollama.chat(client,
   model: "gpt-oss:120b",
   messages: [%{role: "user", content: "Why is the sky blue?"}]
-])
+)
 ```
 
-The client will add the `Authorization` header automatically when
-`OLLAMA_API_KEY` is set. To override headers explicitly:
+`OLLAMA_API_KEY` is used automatically if it is set. To override headers:
 
 ```elixir
 client = Ollama.init("https://ollama.com",
@@ -239,156 +327,76 @@ client = Ollama.init("https://ollama.com",
 )
 ```
 
-## Streaming
-
-Streaming is supported on certain endpoints by setting the `:stream` option to `true` or a `t:pid/0`.
-
-When `:stream` is set to `true`, a lazy `t:Enumerable.t/0` is returned, which can be used with any `Stream` functions.
+## Client configuration
 
 ```elixir
-{:ok, stream} = Ollama.completion(client, [
-  model: "llama3.2",
-  prompt: "Why is the sky blue?",
-  stream: true,
-])
+client = Ollama.init("http://localhost:11434")
+client = Ollama.init("localhost:11434")
+client = Ollama.init(":11434")
+client = Ollama.init(host: "ollama.internal:11434")
+client = Ollama.init(headers: [{"x-some-header", "some-value"}])
+client = Ollama.init(receive_timeout: 120_000)
 
-stream
-|> Stream.each(& Process.send(pid, &1, [])
-|> Stream.run()
-# :ok
+req = Req.new(base_url: "http://localhost:11434/api", headers: [{"x-env", "dev"}])
+client = Ollama.init(req)
 ```
 
-This approach above builds the `t:Enumerable.t/0` by calling `receive`, which may cause issues in `GenServer` callbacks. As an alternative, you can set the `:stream` option to a `t:pid/0`. This returns a `t:Task.t/0` that sends messages to the specified process.
+Environment variables:
 
-The following example demonstrates a streaming request in a LiveView event, sending each streaming message back to the same LiveView process:
+- `OLLAMA_HOST` sets the default host (e.g. `http://localhost:11434`)
+- `OLLAMA_API_KEY` provides a bearer token for the hosted API
+
+## Error handling
+
+All functions return `{:ok, result}` or `{:error, reason}`:
 
 ```elixir
-defmodule MyApp.ChatLive do
-  use Phoenix.LiveView
-
-  # When the client invokes the "prompt" event, create a streaming request and
-  # asynchronously send messages back to self.
-  def handle_event("prompt", %{"message" => prompt}, socket) do
-    {:ok, task} = Ollama.completion(Ollama.init(), [
-      model: "llama3.2",
-      prompt: prompt,
-      stream: self(),
-    ])
-
-    {:noreply, assign(socket, current_request: task)}
-  end
-
-  # The streaming request sends messages back to the LiveView process.
-  def handle_info({_request_pid, {:data, _data}} = message, socket) do
-    pid = socket.assigns.current_request.pid
-    case message do
-      {^pid, {:data, %{"done" => false} = data}} ->
-        # handle each streaming chunk
-
-      {^pid, {:data, %{"done" => true} = data}} ->
-        # handle the final streaming chunk
-
-      {_pid, _data} ->
-        # this message was not expected!
-    end
-  end
-
-  # Tidy up when the request is finished
-  def handle_info({ref, {:ok, %Req.Response{status: 200}}}, socket) do
-    Process.demonitor(ref, [:flush])
-    {:noreply, assign(socket, current_request: nil)}
-  end
+case Ollama.chat(client, model: "not-found", messages: [%{role: "user", content: "Hi"}]) do
+  {:ok, response} -> response
+  {:error, %Ollama.RequestError{} = error} -> IO.puts("Request error: #{Exception.message(error)}")
+  {:error, %Ollama.ResponseError{} = error} -> IO.puts("Response error: #{Exception.message(error)}")
 end
 ```
 
-Regardless of the streaming approach used, each streaming message is a plain `t:map/0`. For the message schema, refer to the [Ollama API docs](https://github.com/ollama/ollama/blob/main/docs/api.md).
-
-## Function calling
-
-Ollama 0.3 and later versions support tool use and function calling on compatible models.
-Tool calling is model-dependent, so check the model card if you do not see `tool_calls` in responses.
-Ollama currently doesn't support tool use with streaming requests, so avoid setting `:stream` to `true`.
-
-Using tools typically involves at least two round-trip requests to the model. Begin by defining one or more tools using a schema similar to ChatGPT's. Provide clear and concise descriptions for the tool and each argument.
-
-```elixir
-stock_price_tool = %{
-  type: "function",
-  function: %{
-    name: "get_stock_price",
-    description: "Fetches the live stock price for the given ticker.",
-    parameters: %{
-      type: "object",
-      properties: %{
-        ticker: %{
-          type: "string",
-          description: "The ticker symbol of a specific stock."
-        }
-      },
-      required: ["ticker"]
-    }
-  }
-}
-```
-
-The first round-trip involves sending a prompt in a chat with the tool definitions. The model should respond with a message containing a list of tool calls.
-
-```elixir
-Ollama.chat(client, [
-  model: "llama3.2",
-  messages: [
-    %{role: "user", content: "What is the current stock price for Apple?"}
-  ],
-  tools: [stock_price_tool],
-])
-# {:ok, %{"message" => %{
-#   "role" => "assistant",
-#   "content" => "",
-#   "tool_calls" => [
-#     %{"function" => %{
-#       "name" => "get_stock_price",
-#       "arguments" => %{"ticker" => "AAPL"}
-#     }}
-#   ]
-# }, ...}}
-```
-
-Your implementation must intercept these tool calls and execute a corresponding function in your codebase with the specified arguments. The next round-trip involves passing the function's result back to the model as a message with a `:role` of `"tool"`.
-
-```elixir
-Ollama.chat(client, [
-  model: "llama3.2",
-  messages: [
-    %{role: "user", content: "What is the current stock price for Apple?"},
-    %{role: "assistant", content: "", tool_calls: [%{"function" => %{"name" => "get_stock_price", "arguments" => %{"ticker" => "AAPL"}}}]},
-    %{role: "tool", content: "$217.96"},
-  ],
-  tools: [stock_price_tool],
-])
-# {:ok, %{"message" => %{
-#   "role" => "assistant",
-#   "content" => "The current stock price for Apple (AAPL) is approximately $217.96.",
-# }, ...}}
-```
-
-After receiving the function tool's value, the model will respond to the user's original prompt, incorporating the function result into its response.
-
 ## API surface
 
-The client mirrors the Ollama REST API:
+The client mirrors the Ollama REST API, with Python-style aliases where helpful:
 
 ```elixir
 Ollama.chat(client, model: "llama3.2", messages: [%{role: "user", content: "Hello"}])
 Ollama.completion(client, model: "llama3.2", prompt: "Hello")
+Ollama.generate(client, model: "llama3.2", prompt: "Hello")
 Ollama.list_models(client)
+Ollama.list(client)
 Ollama.show_model(client, name: "llama3.2")
+Ollama.show(client, name: "llama3.2")
+Ollama.list_running(client)
+Ollama.ps(client)
 Ollama.create_model(client, name: "example", from: "llama3.2", system: "You are Mario.")
+Ollama.create(client, name: "example", from: "llama3.2")
 Ollama.copy_model(client, source: "llama3.2", destination: "user/llama3.2")
+Ollama.copy(client, source: "llama3.2", destination: "user/llama3.2")
 Ollama.delete_model(client, name: "llama3.2")
+Ollama.delete(client, name: "llama3.2")
 Ollama.pull_model(client, name: "llama3.2")
+Ollama.pull(client, name: "llama3.2")
 Ollama.push_model(client, name: "user/llama3.2")
+Ollama.push(client, name: "user/llama3.2")
 Ollama.embed(client, model: "nomic-embed-text", input: "The sky is blue.")
+Ollama.embeddings(client, model: "llama3.2", prompt: "Legacy embeddings")
+Ollama.web_search(client, query: "Elixir language")
+Ollama.web_fetch(client, url: "https://elixir-lang.org")
 ```
+
+## Examples and Guides
+
+- [Examples](examples/README.md)
+- [Getting Started](guides/getting-started.md)
+- [Streaming](guides/streaming.md)
+- [Tools](guides/tools.md)
+- [Structured Outputs](guides/structured-outputs.md)
+- [Ollama Server Setup](guides/ollama-setup.md)
+- [Cheatsheet](guides/cheatsheet.md)
 
 ## License
 

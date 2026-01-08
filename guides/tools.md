@@ -43,6 +43,43 @@ weather_tool = %{
 }
 ```
 
+## Tool Helpers
+
+You can define tools programmatically:
+
+```elixir
+tool =
+  Ollama.Tool.define(:get_weather,
+    description: "Get current weather for a location",
+    parameters: [
+      location: [type: :string, required: true, description: "City name"],
+      unit: [type: :string, enum: ["celsius", "fahrenheit"]]
+    ]
+  )
+```
+
+Or pass functions directly and let Ollama convert them:
+
+```elixir
+defmodule WeatherTools do
+  @doc "Get weather for a city."
+  @spec get_weather(String.t(), String.t()) :: String.t()
+  def get_weather(city, unit), do: "#{city} in #{unit}: 72 degrees"
+end
+
+{:ok, response} = Ollama.chat(client,
+  model: "llama3.2",
+  messages: [%{role: "user", content: "Weather in Tokyo?"}],
+  tools: [&WeatherTools.get_weather/2]
+)
+```
+
+Ollama also ships predefined tool definitions for web search and fetch:
+
+```elixir
+tools = Ollama.Web.Tools.all()
+```
+
 ### Best Practices for Tool Definitions
 
 1. **Clear descriptions** - Help the model understand when to use the tool
@@ -151,7 +188,7 @@ end
 
 - **No streaming with tools** - `stream: true` is not supported when using tools
 - **Model dependent** - Not all models support tool use
-- **JSON parsing** - Tool arguments are JSON strings that need parsing
+- **Tool arguments** - Arguments may arrive as a JSON string or a map
 
 ## Compatible Models
 

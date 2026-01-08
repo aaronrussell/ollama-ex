@@ -1,10 +1,8 @@
 defmodule OllamaTest do
-  use ExUnit.Case, async: true
-  alias Ollama.HTTPError
+  use ExUnit.Case, async: false
+  alias Ollama.ResponseError
 
   setup_all do
-    {:ok, pid} = Bandit.start_link(plug: Ollama.MockServer)
-    on_exit(fn -> Process.exit(pid, :normal) end)
     {:ok, client: Ollama.init("http://localhost:4000")}
   end
 
@@ -114,7 +112,7 @@ defmodule OllamaTest do
     end
 
     test "returns error when model not found", %{client: client} do
-      assert {:error, %HTTPError{status: 404}} =
+      assert {:error, %ResponseError{status: 404}} =
                Ollama.chat(client,
                  model: "not-found",
                  messages: [
@@ -185,7 +183,7 @@ defmodule OllamaTest do
     end
 
     test "returns error when model not found", %{client: client} do
-      assert {:error, %HTTPError{status: 404}} =
+      assert {:error, %ResponseError{status: 404}} =
                Ollama.completion(client,
                  model: "not-found",
                  prompt: "Why is the sky blue?"
@@ -378,7 +376,7 @@ defmodule OllamaTest do
     end
 
     test "returns error when model not found", %{client: client} do
-      assert {:error, %HTTPError{status: 404}} = Ollama.show_model(client, name: "not-found")
+      assert {:error, %ResponseError{status: 404}} = Ollama.show_model(client, name: "not-found")
     end
   end
 
@@ -468,7 +466,25 @@ defmodule OllamaTest do
 
   describe "create_blob/2" do
     test "creates a blob for the given binary data", %{client: client} do
-      assert {:ok, true} = Ollama.create_blob(client, <<0, 1, 2, 3>>)
+      data = <<0, 1, 2, 3>>
+      digest = Ollama.Blob.digest(data)
+      assert {:ok, ^digest} = Ollama.create_blob(client, data)
+    end
+
+    test "creates a blob from a file path", %{client: client} do
+      path = Path.join(System.tmp_dir!(), "ollama-blob-test.bin")
+      data = "blob-data"
+
+      File.write!(path, data)
+      on_exit(fn -> File.rm(path) end)
+
+      digest = Ollama.Blob.digest(data)
+      assert {:ok, ^digest} = Ollama.create_blob(client, path)
+    end
+
+    test "returns error for missing file", %{client: client} do
+      assert {:error, %Ollama.RequestError{}} =
+               Ollama.create_blob(client, "/tmp/missing-blob.bin")
     end
   end
 
@@ -500,7 +516,7 @@ defmodule OllamaTest do
     end
 
     test "returns error when model not found", %{client: client} do
-      assert {:error, %HTTPError{status: 404}} =
+      assert {:error, %ResponseError{status: 404}} =
                Ollama.embed(client,
                  model: "not-found",
                  input: "Why is the sky blue?"
@@ -539,7 +555,7 @@ defmodule OllamaTest do
 
     test "returns error when model not found", %{client: client} do
       # Use apply/3 to avoid deprecation warning - we still need to test the deprecated function
-      assert {:error, %HTTPError{status: 404}} =
+      assert {:error, %ResponseError{status: 404}} =
                apply(Ollama, :embeddings, [
                  client,
                  [

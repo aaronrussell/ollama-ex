@@ -61,4 +61,21 @@ defmodule Ollama.ConfigTest do
       end
     end
   end
+
+  describe "host parsing" do
+    test "accepts host without scheme" do
+      client = Ollama.init("example.com")
+      assert client.req.options.base_url == "http://example.com:11434/api"
+    end
+
+    test "accepts host with port only" do
+      client = Ollama.init(":56789")
+      assert client.req.options.base_url == "http://localhost:56789/api"
+    end
+
+    test "accepts host option" do
+      client = Ollama.init(host: "example.com:56789")
+      assert client.req.options.base_url == "http://example.com:56789/api"
+    end
+  end
 end

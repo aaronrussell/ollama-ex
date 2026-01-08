@@ -56,6 +56,20 @@ Chat responses include:
 | `total_duration` | Total time in nanoseconds |
 | `eval_count` | Tokens generated |
 
+## Typed Responses (Optional)
+
+If you prefer response structs instead of maps:
+
+```elixir
+{:ok, response} = Ollama.chat(client,
+  model: "llama3.2",
+  messages: [%{role: "user", content: "Hello!"}],
+  response_format: :struct
+)
+
+IO.puts(response.message.content)
+```
+
 ## Next Steps
 
 - [Streaming Guide](streaming.md) - Real-time responses

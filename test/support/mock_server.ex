@@ -323,6 +323,24 @@ defmodule Ollama.MockServer do
         0.8785552978515625, -0.34576427936553955, 0.5742510557174683, -0.04222835972905159, -0.137906014919281
       ]
     }
+    """,
+    web_search: """
+    {
+      "results": [
+        {
+          "title": "Example",
+          "url": "https://example.com",
+          "content": "Example content"
+        }
+      ]
+    }
+    """,
+    web_fetch: """
+    {
+      "title": "Example",
+      "content": "Example content",
+      "links": ["https://example.com"]
+    }
     """
   }
 
@@ -447,43 +465,68 @@ defmodule Ollama.MockServer do
   plug(:dispatch)
 
   post "/chat" do
-    case conn.body_params do
-      %{"model" => "llama3.1", "format" => fmt} when is_map(fmt) ->
-        respond(conn, :chat_structured)
+    params = conn.body_params
 
-      %{"model" => "gpt-oss", "think" => level} when level in [true, "low", "medium", "high"] ->
-        respond(conn, :chat_thinking)
+    cond do
+      invalid_options?(params["options"]) ->
+        respond(conn, 400)
 
-      %{"logprobs" => true} ->
-        respond(conn, :chat_logprobs)
+      messages_have_images?(params["messages"]) ->
+        if messages_images_valid?(params["messages"]),
+          do: respond(conn, :chat),
+          else: respond(conn, 400)
 
-      %{"model" => "mistral-nemo", "messages" => msgs} when length(msgs) == 1 ->
-        respond(conn, :tool_call)
+      true ->
+        case params do
+          %{"model" => "llama3.1", "format" => fmt} when is_map(fmt) ->
+            respond(conn, :chat_structured)
 
-      %{"model" => "mistral-nemo", "messages" => msgs} when length(msgs) > 1 ->
-        respond(conn, :tool_result)
+          %{"model" => "gpt-oss", "think" => level}
+          when level in [true, "low", "medium", "high"] ->
+            respond(conn, :chat_thinking)
 
-      _ ->
-        handle_request(conn, :chat)
+          %{"logprobs" => true} ->
+            respond(conn, :chat_logprobs)
+
+          %{"model" => "mistral-nemo", "messages" => msgs} when length(msgs) == 1 ->
+            respond(conn, :tool_call)
+
+          %{"model" => "mistral-nemo", "messages" => msgs} when length(msgs) > 1 ->
+            respond(conn, :tool_result)
+
+          _ ->
+            handle_request(conn, :chat)
+        end
     end
   end
 
   post "/generate" do
-    case conn.body_params do
-      %{"format" => fmt} when is_map(fmt) ->
-        respond(conn, :completion_structured)
+    params = conn.body_params
 
-      %{"model" => "gpt-oss", "think" => true} ->
-        respond(conn, :completion_thinking)
+    cond do
+      invalid_options?(params["options"]) ->
+        respond(conn, 400)
 
-      %{"suffix" => _} ->
-        respond(conn, :completion_fim)
+      true ->
+        case params do
+          %{"format" => fmt} when is_map(fmt) ->
+            respond(conn, :completion_structured)
 
-      %{"logprobs" => true} ->
-        respond(conn, :completion_logprobs)
+          %{"model" => "gpt-oss", "think" => true} ->
+            respond(conn, :completion_thinking)
 
-      _ ->
-        handle_request(conn, :completion)
+          %{"suffix" => _} ->
+            respond(conn, :completion_fim)
+
+          %{"logprobs" => true} ->
+            respond(conn, :completion_logprobs)
+
+          %{"images" => images} when is_list(images) ->
+            if valid_images?(images), do: respond(conn, :completion), else: respond(conn, 400)
+
+          _ ->
+            handle_request(conn, :completion)
+        end
     end
   end
 
@@ -521,6 +564,12 @@ defmodule Ollama.MockServer do
 
   post("/blobs/:digest", do: respond(conn, 200))
   post("/embeddings", do: handle_request(conn, :embeddings))
+  post("/web_search", do: respond(conn, :web_search))
+  post("/web_fetch", do: respond(conn, :web_fetch))
+
+  get "/image" do
+    send_resp(conn, 200, <<0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A>>)
+  end
 
   post "/embed" do
     case conn.body_params do
@@ -529,6 +578,10 @@ defmodule Ollama.MockServer do
       %{"input" => input} when is_binary(input) -> respond(conn, :embed_one)
       %{"input" => input} when is_list(input) -> respond(conn, :embed_many)
     end
+  end
+
+  match _ do
+    send_resp(conn, 404, "")
   end
 
   defp handle_request(conn, name) do
@@ -562,4 +615,45 @@ defmodule Ollama.MockServer do
   end
 
   defp strip_api_prefix(conn, _opts), do: conn
+
+  defp invalid_options?(options) when is_list(options), do: true
+
+  defp invalid_options?(options) when is_map(options) do
+    Map.has_key?(options, "__struct__")
+  end
+
+  defp invalid_options?(_), do: false
+
+  defp messages_have_images?(messages) when is_list(messages) do
+    Enum.any?(messages, &Map.has_key?(&1, "images"))
+  end
+
+  defp messages_have_images?(_), do: false
+
+  defp messages_images_valid?(messages) when is_list(messages) do
+    Enum.all?(messages, fn message ->
+      case Map.get(message, "images") do
+        nil -> true
+        images when is_list(images) -> valid_images?(images)
+        _ -> false
+      end
+    end)
+  end
+
+  defp messages_images_valid?(_), do: false
+
+  defp valid_images?(images) when is_list(images) do
+    Enum.all?(images, &valid_base64?/1)
+  end
+
+  defp valid_images?(_), do: false
+
+  defp valid_base64?(value) when is_binary(value) do
+    case Base.decode64(value) do
+      {:ok, _} -> true
+      :error -> false
+    end
+  end
+
+  defp valid_base64?(_), do: false
 end

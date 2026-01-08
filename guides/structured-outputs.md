@@ -2,6 +2,8 @@
 
 Force the model to return JSON matching a specific schema.
 
+The `:format` option accepts either `"json"` or a JSON Schema map.
+
 ## Basic JSON Output
 
 ```elixir
@@ -11,7 +13,10 @@ Force the model to return JSON matching a specific schema.
   format: "json"
 )
 
-{:ok, data} = Jason.decode(response["message"]["content"])
+case Jason.decode(response["message"]["content"]) do
+  {:ok, data} -> data
+  {:error, _} -> raise "Model returned invalid JSON"
+end
 ```
 
 ## JSON Schema
@@ -34,6 +39,25 @@ person_schema = %{
   messages: [%{role: "user", content: "Generate a fictional person"}],
   format: person_schema
 )
+```
+
+Models can still return invalid JSON. Always validate and handle errors.
+
+## Typed Responses (Optional)
+
+You can request typed response structs with `response_format: :struct` while
+still parsing the JSON content from `message` or `response`:
+
+```elixir
+{:ok, response} = Ollama.chat(client,
+  model: "llama3.2",
+  messages: [%{role: "user", content: "Generate a random person"}],
+  format: "json",
+  response_format: :struct
+)
+
+json = response.message.content
+{:ok, data} = Jason.decode(json)
 ```
 
 ## With Ecto Schemas

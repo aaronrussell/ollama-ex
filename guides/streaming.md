@@ -134,7 +134,7 @@ end
 try do
   stream |> Stream.each(&process/1) |> Stream.run()
 rescue
-  e in Ollama.HTTPError ->
+  e in Ollama.ResponseError ->
     Logger.error("Stream error: #{e.message}")
 end
 ```
@@ -146,6 +146,20 @@ def handle_info({ref, {:error, reason}}, socket) do
   Process.demonitor(ref, [:flush])
   {:noreply, assign(socket, error: reason, streaming: false)}
 end
+```
+
+## Typed Streaming (Optional)
+
+When `response_format: :struct` is set, streaming chunks are delivered as
+typed structs instead of maps:
+
+```elixir
+{:ok, stream} = Ollama.chat(client,
+  model: "llama3.2",
+  messages: messages,
+  stream: true,
+  response_format: :struct
+)
 ```
 
 ## Choosing a Mode

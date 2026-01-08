@@ -11,6 +11,9 @@
 ```elixir
 client = Ollama.init()                              # Default
 client = Ollama.init("http://host:11434")          # Custom host
+client = Ollama.init("host:11434")                 # Host without scheme
+client = Ollama.init(":11434")                     # Port-only host
+client = Ollama.init(host: "host:11434")           # Host option
 client = Ollama.init(receive_timeout: 120_000)     # With options
 ```
 
@@ -20,6 +23,8 @@ client = Ollama.init(receive_timeout: 120_000)     # With options
 export OLLAMA_HOST="http://host:11434"
 export OLLAMA_API_KEY="your_api_key_here"
 ```
+
+`OLLAMA_API_KEY` is required for web search/fetch and cloud tests.
 
 ## Chat
 
@@ -54,6 +59,35 @@ Ollama.chat(client, ..., format: %{type: "object", properties: %{...}})
 
 ```elixir
 Ollama.chat(client, ..., tools: [%{type: "function", function: %{name: "...", ...}}])
+Ollama.chat(client, ..., tools: [&MyTools.add/2])       # Function → tool
+Ollama.Tool.define(:get_weather, description: "...", parameters: [...])
+```
+
+## Images (Multimodal)
+
+```elixir
+Ollama.chat(client, ..., messages: [%{role: "user", content: "Describe", images: ["./photo.jpg"]}])
+Ollama.completion(client, ..., images: ["./photo.jpg"])
+```
+
+## Options
+
+```elixir
+opts = Ollama.Options.Presets.creative() |> Ollama.Options.temperature(0.9)
+Ollama.chat(client, ..., options: opts)
+```
+
+## Typed Responses
+
+```elixir
+Ollama.chat(client, ..., response_format: :struct)
+```
+
+## Web (Cloud API)
+
+```elixir
+Ollama.web_search(client, query: "elixir language")
+Ollama.web_fetch(client, url: "https://elixir-lang.org")
 ```
 
 ## Thinking
@@ -97,6 +131,11 @@ Ollama.delete_model(client, name: "model")
 | `:model` | Model name |
 | `:stream` | `true` or `pid` |
 | `:format` | `"json"` or schema |
-| `:think` | Enable thinking |
+| `:response_format` | `:map` (default) or `:struct` |
+| `:think` | Enable thinking (`true` or `"low"|"medium"|"high"`) |
+| `:logprobs` | Return token log probabilities |
+| `:top_logprobs` | Alternatives per token (0-20) |
+| `:suffix` | FIM suffix (completion only) |
+| `:dimensions` | Embedding output size (embed only) |
 | `:keep_alive` | Memory duration |
 | `:options` | Model params |

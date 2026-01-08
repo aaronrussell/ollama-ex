@@ -48,8 +48,8 @@ defmodule Ollama do
 
       case Ollama.chat(client, opts) do
         {:ok, response} -> handle_success(response)
-        {:error, %Ollama.HTTPError{status: 404}} -> handle_not_found()
-        {:error, %Ollama.HTTPError{status: status}} -> handle_error(status)
+        {:error, %Ollama.ResponseError{status: 404}} -> handle_not_found()
+        {:error, %Ollama.ResponseError{status: status}} -> handle_error(status)
       end
 
   ## Links
@@ -58,7 +58,7 @@ defmodule Ollama do
   - [Ollama API Docs](https://github.com/ollama/ollama/blob/main/docs/api.md)
   """
   use Ollama.Schemas
-  alias Ollama.Blob
+  alias Ollama.{Blob, Image, Options, RequestError, ResponseError, Tool, Web}
   defstruct [:req]
 
   @typedoc "Client struct"
@@ -75,13 +75,16 @@ defmodule Ollama do
       doc: "The role of the message, either `system`, `user`, `assistant` or `tool`."
     ],
     content: [
-      type: :string,
-      required: true,
-      doc: "The content of the message."
+      type: {:or, [:string, nil]},
+      doc: "The content of the message. Optional for tool calls."
     ],
     images: [
       type: {:list, :string},
       doc: "*(optional)* List of Base64 encoded images (for multimodal models only)."
+    ],
+    tool_name: [
+      type: :string,
+      doc: "*(optional)* Tool name for tool responses."
     ],
     tool_calls: [
       type: {:list, @permissive_map},
@@ -100,9 +103,9 @@ defmodule Ollama do
 
   schema(:tool_def,
     type: [
-      type: {:in, ["function"]},
-      required: true,
-      doc: "Type of tool. (Currently only `\"function\"` supported)."
+      type: :string,
+      default: "function",
+      doc: "Type of tool. Defaults to `\"function\"`."
     ],
     function: [
       type: :map,
@@ -137,7 +140,7 @@ defmodule Ollama do
 
   @typedoc "Client response"
   @type response() ::
-          {:ok, map() | boolean() | Enumerable.t() | Task.t()}
+          {:ok, map() | boolean() | binary() | Enumerable.t() | Task.t()}
           | {:error, term()}
 
   @typep req_response() ::
@@ -149,7 +152,7 @@ defmodule Ollama do
 
   ## Parameters
 
-  - `opts` - Base URL, `%URI{}`, `Req.Request`, or keyword options for `Req.new/1`.
+  - `opts` - Base URL, host string, `%URI{}`, `Req.Request`, or keyword options for `Req.new/1`.
 
   ## Environment Variables
 
@@ -163,6 +166,13 @@ defmodule Ollama do
 
       # Explicit URL (overrides OLLAMA_HOST)
       client = Ollama.init("http://ollama.example.com:11434")
+
+      # Host strings without a scheme use http:// and default port 11434
+      client = Ollama.init("ollama.example.com")
+      client = Ollama.init(":11434")
+
+      # With host option
+      client = Ollama.init(host: "ollama.example.com:11434")
 
       # With custom options
       client = Ollama.init(receive_timeout: 120_000)
@@ -181,7 +191,7 @@ defmodule Ollama do
   def init(opts \\ [])
 
   def init(url) when is_binary(url),
-    do: struct(__MODULE__, req: init_req(base_url: ensure_api_suffix(url)))
+    do: struct(__MODULE__, req: init_req(base_url: url))
 
   def init(%URI{} = uri),
     do: init(URI.to_string(uri))
@@ -194,10 +204,12 @@ defmodule Ollama do
 
   @spec init_req(keyword()) :: Req.Request.t()
   defp init_req(opts) do
-    default_host = System.get_env("OLLAMA_HOST", "http://localhost:11434")
     api_key = System.get_env("OLLAMA_API_KEY")
 
-    base_url = Keyword.get(opts, :base_url, ensure_api_suffix(default_host))
+    base_url =
+      opts
+      |> Keyword.get(:base_url, Keyword.get(opts, :host, System.get_env("OLLAMA_HOST")))
+      |> normalize_base_url()
 
     base_headers = [{"user-agent", "ollama-ex/#{@version}"}]
 
@@ -213,7 +225,7 @@ defmodule Ollama do
     merged_headers = merge_headers(base_headers ++ api_key_headers, user_headers)
 
     opts
-    |> Keyword.drop([:base_url, :headers])
+    |> Keyword.drop([:base_url, :host, :headers])
     |> Keyword.put(:base_url, base_url)
     |> Keyword.put(:headers, merged_headers)
     |> Keyword.put_new(:receive_timeout, 60_000)
@@ -230,6 +242,52 @@ defmodule Ollama do
     end
   end
 
+  defp normalize_base_url(%URI{} = uri), do: normalize_base_url(URI.to_string(uri))
+  defp normalize_base_url(nil), do: ensure_api_suffix(parse_host(nil))
+
+  defp normalize_base_url(url) when is_binary(url) do
+    trimmed = String.trim(url)
+
+    if trimmed == "" do
+      ensure_api_suffix(parse_host(nil))
+    else
+      base =
+        if String.contains?(trimmed, "://") do
+          trimmed
+        else
+          trimmed
+          |> String.trim_trailing("/")
+          |> String.split("/", parts: 2)
+          |> hd()
+          |> parse_host()
+        end
+
+      ensure_api_suffix(base)
+    end
+  end
+
+  defp parse_host(nil), do: "http://localhost:11434"
+  defp parse_host(""), do: "http://localhost:11434"
+
+  defp parse_host(host) when is_binary(host) do
+    host = String.trim(host)
+    host = String.trim_trailing(host, "/")
+
+    cond do
+      String.starts_with?(host, "http://") or String.starts_with?(host, "https://") ->
+        host
+
+      String.starts_with?(host, ":") ->
+        "http://localhost:" <> String.trim_leading(host, ":")
+
+      String.contains?(host, ":") ->
+        "http://" <> host
+
+      true ->
+        "http://" <> host <> ":11434"
+    end
+  end
+
   defp merge_headers(base, override) do
     override_keys = Enum.map(override, fn {k, _} -> String.downcase(to_string(k)) end)
 
@@ -240,6 +298,189 @@ defmodule Ollama do
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
+  defp pop_response_format(params) do
+    {format, params} = Keyword.pop(params, :response_format)
+    {resolve_response_format(format), params}
+  end
+
+  defp resolve_response_format(nil) do
+    Application.get_env(:ollama, :response_format, :map)
+  end
+
+  defp resolve_response_format(format) when format in [:map, :struct], do: format
+  defp resolve_response_format(_), do: :map
+
+  defp validate_params(params, schema) do
+    case NimbleOptions.validate(params, schema) do
+      {:ok, params} ->
+        {:ok, params}
+
+      {:error, %NimbleOptions.ValidationError{} = error} ->
+        {:error,
+         RequestError.exception(
+           message: Exception.message(error),
+           field: error.key,
+           reason: :validation_error
+         )}
+    end
+  end
+
+  defp cast_fun_for(_endpoint, :map), do: nil
+  defp cast_fun_for(_endpoint, nil), do: nil
+  defp cast_fun_for(:chat, :struct), do: &Ollama.Types.ChatResponse.from_map/1
+  defp cast_fun_for(:completion, :struct), do: &Ollama.Types.GenerateResponse.from_map/1
+  defp cast_fun_for(:embed, :struct), do: &Ollama.Types.EmbedResponse.from_map/1
+  defp cast_fun_for(:embeddings, :struct), do: &Ollama.Types.EmbeddingsResponse.from_map/1
+  defp cast_fun_for(:list_models, :struct), do: &Ollama.Types.ListResponse.from_map/1
+  defp cast_fun_for(:list_running, :struct), do: &Ollama.Types.ProcessResponse.from_map/1
+  defp cast_fun_for(:show_model, :struct), do: &Ollama.Types.ShowResponse.from_map/1
+  defp cast_fun_for(:progress, :struct), do: &Ollama.Types.ProgressResponse.from_map/1
+  defp cast_fun_for(:status, :struct), do: &Ollama.Types.StatusResponse.from_map/1
+  defp cast_fun_for(_endpoint, _format), do: nil
+
+  defp apply_cast({:ok, %Task{} = task}, _cast_fun), do: {:ok, task}
+
+  defp apply_cast({:ok, enum}, cast_fun) when is_function(enum) do
+    if is_function(cast_fun) do
+      {:ok, Stream.map(enum, cast_fun)}
+    else
+      {:ok, enum}
+    end
+  end
+
+  defp apply_cast({:ok, body}, cast_fun) when is_function(cast_fun) do
+    {:ok, cast_fun.(body)}
+  end
+
+  defp apply_cast(result, _cast_fun), do: result
+
+  defp normalize_options(opts) do
+    case Keyword.get(opts, :options) do
+      nil ->
+        {:ok, opts}
+
+      %Options{} = options ->
+        {:ok, Keyword.put(opts, :options, Options.to_map(options))}
+
+      map when is_map(map) ->
+        {:ok, opts}
+
+      keyword when is_list(keyword) ->
+        case Options.build(keyword) do
+          {:ok, options} ->
+            {:ok, Keyword.put(opts, :options, Options.to_map(options))}
+
+          {:error, reason} ->
+            {:error, RequestError.exception(message: "Invalid options", reason: reason)}
+        end
+
+      other ->
+        {:error,
+         RequestError.invalid_type(:options, other, "map, keyword list, or Ollama.Options")}
+    end
+  end
+
+  defp normalize_tools(opts) do
+    case Keyword.get(opts, :tools) do
+      nil ->
+        {:ok, opts}
+
+      tools when is_list(tools) ->
+        case Tool.prepare(tools) do
+          {:ok, prepared} ->
+            {:ok, Keyword.put(opts, :tools, prepared)}
+
+          {:error, reason} ->
+            {:error, RequestError.exception(message: "Invalid tool", reason: reason)}
+        end
+
+      other ->
+        {:error, RequestError.invalid_type(:tools, other, "list")}
+    end
+  end
+
+  defp normalize_images(opts) do
+    case Keyword.get(opts, :images) do
+      nil ->
+        {:ok, opts}
+
+      images when is_list(images) ->
+        case Image.encode_all(images) do
+          {:ok, encoded} ->
+            {:ok, Keyword.put(opts, :images, encoded)}
+
+          {:error, reason} ->
+            {:error, RequestError.exception(message: "Image encoding failed", reason: reason)}
+        end
+
+      other ->
+        {:error, RequestError.invalid_type(:images, other, "list")}
+    end
+  end
+
+  defp normalize_messages_images(opts) do
+    case Keyword.get(opts, :messages) do
+      nil ->
+        {:ok, opts}
+
+      messages when is_list(messages) ->
+        with {:ok, updated} <- encode_message_images(messages) do
+          {:ok, Keyword.put(opts, :messages, updated)}
+        end
+
+      other ->
+        {:error, RequestError.invalid_type(:messages, other, "list")}
+    end
+  end
+
+  defp encode_message_images(messages) do
+    Enum.reduce_while(messages, {:ok, []}, fn message, {:ok, acc} ->
+      case encode_message_images_one(message) do
+        {:ok, updated} -> {:cont, {:ok, acc ++ [updated]}}
+        {:error, _} = error -> {:halt, error}
+      end
+    end)
+  end
+
+  defp encode_message_images_one(message) when is_map(message) do
+    message = if is_struct(message), do: Map.from_struct(message), else: message
+
+    {key, images} =
+      cond do
+        Map.has_key?(message, :images) -> {:images, Map.get(message, :images)}
+        Map.has_key?(message, "images") -> {"images", Map.get(message, "images")}
+        true -> {nil, nil}
+      end
+
+    cond do
+      is_nil(key) ->
+        {:ok, drop_nil_values(message)}
+
+      is_nil(images) ->
+        {:ok, drop_nil_values(message)}
+
+      is_list(images) ->
+        case Image.encode_all(images) do
+          {:ok, encoded} ->
+            {:ok, drop_nil_values(Map.put(message, key, encoded))}
+
+          {:error, reason} ->
+            {:error, RequestError.exception(message: "Image encoding failed", reason: reason)}
+        end
+
+      true ->
+        {:error, RequestError.invalid_type(:images, images, "list")}
+    end
+  end
+
+  defp encode_message_images_one(other), do: {:ok, other}
+
+  defp drop_nil_values(map) do
+    map
+    |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+    |> Map.new()
+  end
 
   schema(:chat,
     model: [
@@ -343,7 +584,8 @@ defmodule Ollama do
   - `{:ok, map()}` - Success with response data
   - `{:ok, Stream.t()}` - When `stream: true`
   - `{:ok, Task.t()}` - When `stream: pid`
-  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+  - `{:error, Ollama.RequestError.t()}` - On validation errors
+  - `{:error, Ollama.ResponseError.t()}` - On HTTP errors
 
   ## See Also
 
@@ -352,10 +594,19 @@ defmodule Ollama do
   """
   @spec chat(client(), keyword()) :: response()
   def chat(%__MODULE__{} = client, params) when is_list(params) do
-    with {:ok, params} <- NimbleOptions.validate(params, schema_def(:chat)) do
-      client
-      |> req(:post, "/chat", json: Enum.into(params, %{}))
-      |> res()
+    {format, params} = pop_response_format(params)
+    cast_fun = cast_fun_for(:chat, format)
+
+    with {:ok, params} <- normalize_options(params),
+         {:ok, params} <- normalize_tools(params),
+         {:ok, params} <- normalize_messages_images(params),
+         {:ok, params} <- validate_params(params, schema_def(:chat)) do
+      result =
+        client
+        |> req(:post, "/chat", json: Enum.into(params, %{}), cast: cast_fun)
+        |> res()
+
+      if params[:stream], do: result, else: apply_cast(result, cast_fun)
     end
   end
 
@@ -463,7 +714,8 @@ defmodule Ollama do
   - `{:ok, map()}` - Success with response data
   - `{:ok, Stream.t()}` - When `stream: true`
   - `{:ok, Task.t()}` - When `stream: pid`
-  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+  - `{:error, Ollama.RequestError.t()}` - On validation errors
+  - `{:error, Ollama.ResponseError.t()}` - On HTTP errors
 
   ## See Also
 
@@ -472,11 +724,27 @@ defmodule Ollama do
   """
   @spec completion(client(), keyword()) :: response()
   def completion(%__MODULE__{} = client, params) when is_list(params) do
-    with {:ok, params} <- NimbleOptions.validate(params, schema_def(:completion)) do
-      client
-      |> req(:post, "/generate", json: Enum.into(params, %{}))
-      |> res()
+    {format, params} = pop_response_format(params)
+    cast_fun = cast_fun_for(:completion, format)
+
+    with {:ok, params} <- normalize_options(params),
+         {:ok, params} <- normalize_images(params),
+         {:ok, params} <- validate_params(params, schema_def(:completion)) do
+      result =
+        client
+        |> req(:post, "/generate", json: Enum.into(params, %{}), cast: cast_fun)
+        |> res()
+
+      if params[:stream], do: result, else: apply_cast(result, cast_fun)
     end
+  end
+
+  @doc """
+  Alias for `completion/2` to match the Python client's `generate`.
+  """
+  @spec generate(client(), keyword()) :: response()
+  def generate(%__MODULE__{} = client, params) when is_list(params) do
+    completion(client, params)
   end
 
   schema(:create_model,
@@ -525,7 +793,8 @@ defmodule Ollama do
   - `{:ok, map()}` - Success with response data
   - `{:ok, Stream.t()}` - When `stream: true`
   - `{:ok, Task.t()}` - When `stream: pid`
-  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+  - `{:error, Ollama.RequestError.t()}` - On validation errors
+  - `{:error, Ollama.ResponseError.t()}` - On HTTP errors
 
   ## See Also
 
@@ -534,7 +803,17 @@ defmodule Ollama do
   """
   @spec create_model(client(), keyword()) :: response()
   def create_model(%__MODULE__{} = client, params) when is_list(params) do
-    with {:ok, params} <- NimbleOptions.validate(params, schema_def(:create_model)) do
+    {format, params} = pop_response_format(params)
+    cast_fun = cast_fun_for(:progress, format)
+
+    with {:ok, params} <- normalize_messages_images(params),
+         {:ok, params} <- validate_params(params, schema_def(:create_model)) do
+      parameters =
+        case params[:parameters] do
+          list when is_list(list) -> Enum.into(list, %{})
+          map -> map
+        end
+
       body =
         %{}
         |> Map.put(:name, params[:name])
@@ -545,15 +824,26 @@ defmodule Ollama do
         |> maybe_put(:template, params[:template])
         |> maybe_put(:license, params[:license])
         |> maybe_put(:system, params[:system])
-        |> maybe_put(:parameters, params[:parameters])
+        |> maybe_put(:parameters, parameters)
         |> maybe_put(:messages, params[:messages])
         |> maybe_put(:quantize, params[:quantize])
         |> maybe_put(:stream, params[:stream])
 
-      client
-      |> req(:post, "/create", json: body)
-      |> res()
+      result =
+        client
+        |> req(:post, "/create", json: body, cast: cast_fun)
+        |> res()
+
+      if params[:stream], do: result, else: apply_cast(result, cast_fun)
     end
+  end
+
+  @doc """
+  Alias for `create_model/2` to match the Python client's `create`.
+  """
+  @spec create(client(), keyword()) :: response()
+  def create(%__MODULE__{} = client, params) when is_list(params) do
+    create_model(client, params)
   end
 
   @doc """
@@ -574,18 +864,30 @@ defmodule Ollama do
   ## Returns
 
   - `{:ok, map()}` - Map containing available models
-  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+  - `{:error, Ollama.ResponseError.t()}` - On HTTP errors
 
   ## See Also
 
   - `show_model/2` - Fetch model details
   - `list_running/1` - List running models
   """
-  @spec list_models(client()) :: response()
-  def list_models(%__MODULE__{} = client) do
+  @spec list_models(client(), keyword()) :: response()
+  def list_models(%__MODULE__{} = client, opts \\ []) when is_list(opts) do
+    {format, _opts} = pop_response_format(opts)
+    cast_fun = cast_fun_for(:list_models, format)
+
     client
     |> req(:get, "/tags")
     |> res()
+    |> apply_cast(cast_fun)
+  end
+
+  @doc """
+  Alias for `list_models/2` to match the Python client's `list`.
+  """
+  @spec list(client(), keyword()) :: response()
+  def list(%__MODULE__{} = client, opts \\ []) when is_list(opts) do
+    list_models(client, opts)
   end
 
   @doc """
@@ -605,18 +907,30 @@ defmodule Ollama do
   ## Returns
 
   - `{:ok, map()}` - Map containing running models
-  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+  - `{:error, Ollama.ResponseError.t()}` - On HTTP errors
 
   ## See Also
 
   - `list_models/1` - List available models
   - `show_model/2` - Fetch model details
   """
-  @spec list_running(client()) :: response()
-  def list_running(%__MODULE__{} = client) do
+  @spec list_running(client(), keyword()) :: response()
+  def list_running(%__MODULE__{} = client, opts \\ []) when is_list(opts) do
+    {format, _opts} = pop_response_format(opts)
+    cast_fun = cast_fun_for(:list_running, format)
+
     client
     |> req(:get, "/ps")
     |> res()
+    |> apply_cast(cast_fun)
+  end
+
+  @doc """
+  Alias for `list_running/2` to match the Python client's `ps`.
+  """
+  @spec ps(client(), keyword()) :: response()
+  def ps(%__MODULE__{} = client, opts \\ []) when is_list(opts) do
+    list_running(client, opts)
   end
 
   schema(:load_model,
@@ -653,7 +967,7 @@ defmodule Ollama do
 
   - `{:ok, true}` - When the model was loaded
   - `{:ok, false}` - When the model was not found
-  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+  - `{:error, Ollama.ResponseError.t()}` - On HTTP errors
 
   ## See Also
 
@@ -662,10 +976,10 @@ defmodule Ollama do
   """
   @spec preload(client(), keyword()) :: response()
   def preload(%__MODULE__{} = client, params) when is_list(params) do
-    with {:ok, params} <- NimbleOptions.validate(params, schema_def(:load_model)) do
+    with {:ok, params} <- validate_params(params, schema_def(:load_model)) do
       client
       |> req(:post, "/generate", json: Enum.into(params, %{}))
-      |> res_bool()
+      |> res_status()
     end
   end
 
@@ -690,7 +1004,7 @@ defmodule Ollama do
 
   - `{:ok, true}` - When the model was unloaded
   - `{:ok, false}` - When the model was not found
-  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+  - `{:error, Ollama.ResponseError.t()}` - On HTTP errors
 
   ## See Also
 
@@ -699,12 +1013,12 @@ defmodule Ollama do
   """
   @spec unload(client(), keyword()) :: response()
   def unload(%__MODULE__{} = client, params) when is_list(params) do
-    with {:ok, params} <- NimbleOptions.validate(params, schema_def(:load_model)) do
+    with {:ok, params} <- validate_params(params, schema_def(:load_model)) do
       params = Keyword.put(params, :keep_alive, 0)
 
       client
       |> req(:post, "/generate", json: Enum.into(params, %{}))
-      |> res_bool()
+      |> res_status()
     end
   end
 
@@ -747,7 +1061,8 @@ defmodule Ollama do
   ## Returns
 
   - `{:ok, map()}` - Model details
-  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+  - `{:error, Ollama.RequestError.t()}` - On validation errors
+  - `{:error, Ollama.ResponseError.t()}` - On HTTP errors
 
   ## See Also
 
@@ -755,11 +1070,23 @@ defmodule Ollama do
   """
   @spec show_model(client(), keyword()) :: response()
   def show_model(%__MODULE__{} = client, params) when is_list(params) do
-    with {:ok, params} <- NimbleOptions.validate(params, schema_def(:show_model)) do
+    {format, params} = pop_response_format(params)
+    cast_fun = cast_fun_for(:show_model, format)
+
+    with {:ok, params} <- validate_params(params, schema_def(:show_model)) do
       client
       |> req(:post, "/show", json: Enum.into(params, %{}))
       |> res()
+      |> apply_cast(cast_fun)
     end
+  end
+
+  @doc """
+  Alias for `show_model/2` to match the Python client's `show`.
+  """
+  @spec show(client(), keyword()) :: response()
+  def show(%__MODULE__{} = client, params) when is_list(params) do
+    show_model(client, params)
   end
 
   schema(:copy_model,
@@ -799,7 +1126,8 @@ defmodule Ollama do
 
   - `{:ok, true}` - When the copy succeeded
   - `{:ok, false}` - When the model was not found
-  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+  - `{:error, Ollama.RequestError.t()}` - On validation errors
+  - `{:error, Ollama.ResponseError.t()}` - On HTTP errors
 
   ## See Also
 
@@ -808,11 +1136,33 @@ defmodule Ollama do
   """
   @spec copy_model(client(), keyword()) :: response()
   def copy_model(%__MODULE__{} = client, params) when is_list(params) do
-    with {:ok, params} <- NimbleOptions.validate(params, schema_def(:copy_model)) do
-      client
-      |> req(:post, "/copy", json: Enum.into(params, %{}))
-      |> res_bool()
+    {format, params} = pop_response_format(params)
+    cast_fun = cast_fun_for(:status, format)
+
+    with {:ok, params} <- validate_params(params, schema_def(:copy_model)) do
+      result =
+        client
+        |> req(:post, "/copy", json: Enum.into(params, %{}))
+        |> res_status()
+
+      if format == :struct do
+        case result do
+          {:ok, true} -> apply_cast({:ok, %{"status" => "success"}}, cast_fun)
+          {:ok, false} -> apply_cast({:ok, %{"status" => "error"}}, cast_fun)
+          {:error, _} = error -> error
+        end
+      else
+        result
+      end
     end
+  end
+
+  @doc """
+  Alias for `copy_model/2` to match the Python client's `copy`.
+  """
+  @spec copy(client(), keyword()) :: response()
+  def copy(%__MODULE__{} = client, params) when is_list(params) do
+    copy_model(client, params)
   end
 
   schema(:delete_model,
@@ -844,7 +1194,8 @@ defmodule Ollama do
 
   - `{:ok, true}` - When the delete succeeded
   - `{:ok, false}` - When the model was not found
-  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+  - `{:error, Ollama.RequestError.t()}` - On validation errors
+  - `{:error, Ollama.ResponseError.t()}` - On HTTP errors
 
   ## See Also
 
@@ -853,11 +1204,33 @@ defmodule Ollama do
   """
   @spec delete_model(client(), keyword()) :: response()
   def delete_model(%__MODULE__{} = client, params) when is_list(params) do
-    with {:ok, params} <- NimbleOptions.validate(params, schema_def(:delete_model)) do
-      client
-      |> req(:delete, "/delete", json: Enum.into(params, %{}))
-      |> res_bool()
+    {format, params} = pop_response_format(params)
+    cast_fun = cast_fun_for(:status, format)
+
+    with {:ok, params} <- validate_params(params, schema_def(:delete_model)) do
+      result =
+        client
+        |> req(:delete, "/delete", json: Enum.into(params, %{}))
+        |> res_status()
+
+      if format == :struct do
+        case result do
+          {:ok, true} -> apply_cast({:ok, %{"status" => "success"}}, cast_fun)
+          {:ok, false} -> apply_cast({:ok, %{"status" => "error"}}, cast_fun)
+          {:error, _} = error -> error
+        end
+      else
+        result
+      end
     end
+  end
+
+  @doc """
+  Alias for `delete_model/2` to match the Python client's `delete`.
+  """
+  @spec delete(client(), keyword()) :: response()
+  def delete(%__MODULE__{} = client, params) when is_list(params) do
+    delete_model(client, params)
   end
 
   schema(:pull_model,
@@ -865,6 +1238,10 @@ defmodule Ollama do
       type: :string,
       required: true,
       doc: "Name of the model to pull."
+    ],
+    insecure: [
+      type: :boolean,
+      doc: "Allow insecure (HTTP) connections."
     ],
     stream: [
       type: {:or, [:boolean, :pid]},
@@ -899,7 +1276,8 @@ defmodule Ollama do
   - `{:ok, map()}` - Status updates or completion
   - `{:ok, Stream.t()}` - When `stream: true`
   - `{:ok, Task.t()}` - When `stream: pid`
-  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+  - `{:error, Ollama.RequestError.t()}` - On validation errors
+  - `{:error, Ollama.ResponseError.t()}` - On HTTP errors
 
   ## See Also
 
@@ -907,11 +1285,25 @@ defmodule Ollama do
   """
   @spec pull_model(client(), keyword()) :: response()
   def pull_model(%__MODULE__{} = client, params) when is_list(params) do
-    with {:ok, params} <- NimbleOptions.validate(params, schema_def(:pull_model)) do
-      client
-      |> req(:post, "/pull", json: Enum.into(params, %{}))
-      |> res()
+    {format, params} = pop_response_format(params)
+    cast_fun = cast_fun_for(:progress, format)
+
+    with {:ok, params} <- validate_params(params, schema_def(:pull_model)) do
+      result =
+        client
+        |> req(:post, "/pull", json: Enum.into(params, %{}), cast: cast_fun)
+        |> res()
+
+      if params[:stream], do: result, else: apply_cast(result, cast_fun)
     end
+  end
+
+  @doc """
+  Alias for `pull_model/2` to match the Python client's `pull`.
+  """
+  @spec pull(client(), keyword()) :: response()
+  def pull(%__MODULE__{} = client, params) when is_list(params) do
+    pull_model(client, params)
   end
 
   schema(:push_model,
@@ -919,6 +1311,10 @@ defmodule Ollama do
       type: :string,
       required: true,
       doc: "Name of the model to pull."
+    ],
+    insecure: [
+      type: :boolean,
+      doc: "Allow insecure (HTTP) connections."
     ],
     stream: [
       type: {:or, [:boolean, :pid]},
@@ -954,7 +1350,8 @@ defmodule Ollama do
   - `{:ok, map()}` - Status updates or completion
   - `{:ok, Stream.t()}` - When `stream: true`
   - `{:ok, Task.t()}` - When `stream: pid`
-  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+  - `{:error, Ollama.RequestError.t()}` - On validation errors
+  - `{:error, Ollama.ResponseError.t()}` - On HTTP errors
 
   ## See Also
 
@@ -962,11 +1359,25 @@ defmodule Ollama do
   """
   @spec push_model(client(), keyword()) :: response()
   def push_model(%__MODULE__{} = client, params) when is_list(params) do
-    with {:ok, params} <- NimbleOptions.validate(params, schema_def(:push_model)) do
-      client
-      |> req(:post, "/push", json: Enum.into(params, %{}))
-      |> res()
+    {format, params} = pop_response_format(params)
+    cast_fun = cast_fun_for(:progress, format)
+
+    with {:ok, params} <- validate_params(params, schema_def(:push_model)) do
+      result =
+        client
+        |> req(:post, "/push", json: Enum.into(params, %{}), cast: cast_fun)
+        |> res()
+
+      if params[:stream], do: result, else: apply_cast(result, cast_fun)
     end
+  end
+
+  @doc """
+  Alias for `push_model/2` to match the Python client's `push`.
+  """
+  @spec push(client(), keyword()) :: response()
+  def push(%__MODULE__{} = client, params) when is_list(params) do
+    push_model(client, params)
   end
 
   @doc """
@@ -989,7 +1400,8 @@ defmodule Ollama do
 
   - `{:ok, true}` - When the blob exists
   - `{:ok, false}` - When the blob does not exist
-  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+  - `{:error, Ollama.RequestError.t()}` - On validation errors
+  - `{:error, Ollama.ResponseError.t()}` - On HTTP errors
 
   ## See Also
 
@@ -997,29 +1409,33 @@ defmodule Ollama do
   """
   @spec check_blob(client(), Blob.digest() | binary()) :: response()
   def check_blob(%__MODULE__{} = client, "sha256:" <> _ = digest),
-    do: req(client, :head, "/blobs/#{digest}") |> res_bool()
+    do: req(client, :head, "/blobs/#{digest}") |> res_status()
 
   def check_blob(%__MODULE__{} = client, blob) when is_binary(blob),
     do: check_blob(client, Blob.digest(blob))
 
   @doc """
-  Creates a blob from its binary data.
+  Uploads a blob and returns its digest.
 
   ## Parameters
 
   - `client` - Ollama client from `init/1`
-  - `blob` - Raw binary data to store
+  - `blob` - File path or raw binary data
 
-  ## Example
+  ## Examples
 
+      iex> Ollama.create_blob(client, "adapter.bin")
+      {:ok, "sha256:..."}
+
+      iex> data = File.read!("adapter.bin")
       iex> Ollama.create_blob(client, data)
-      {:ok, true}
+      {:ok, "sha256:..."}
 
   ## Returns
 
-  - `{:ok, true}` - When the blob was created
-  - `{:ok, false}` - When the blob already exists
-  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+  - `{:ok, digest}` - When the blob was created or already exists
+  - `{:error, Ollama.RequestError.t()}` - On validation errors
+  - `{:error, Ollama.ResponseError.t()}` - On HTTP errors
 
   ## See Also
 
@@ -1027,9 +1443,44 @@ defmodule Ollama do
   """
   @spec create_blob(client(), binary()) :: response()
   def create_blob(%__MODULE__{} = client, blob) when is_binary(blob) do
-    client
-    |> req(:post, "/blobs/#{Blob.digest(blob)}", body: blob)
-    |> res_bool()
+    with {:ok, data} <- read_blob_data(blob) do
+      digest = Blob.digest(data)
+
+      client
+      |> req(:post, "/blobs/#{digest}", body: data)
+      |> res_blob(digest)
+    end
+  end
+
+  defp read_blob_data(blob) when is_binary(blob) do
+    cond do
+      File.exists?(blob) ->
+        case File.read(blob) do
+          {:ok, data} ->
+            {:ok, data}
+
+          {:error, reason} ->
+            {:error,
+             RequestError.exception(
+               message: "Failed to read blob file",
+               reason: {:file_read_error, reason}
+             )}
+        end
+
+      path_like?(blob) ->
+        {:error,
+         RequestError.exception(
+           message: "Blob file not found",
+           reason: :file_not_found
+         )}
+
+      true ->
+        {:ok, blob}
+    end
+  end
+
+  defp path_like?(value) when is_binary(value) do
+    String.contains?(value, "/") or String.contains?(value, "\\") or Path.extname(value) != ""
   end
 
   schema(:embed,
@@ -1090,7 +1541,8 @@ defmodule Ollama do
   ## Returns
 
   - `{:ok, map()}` - Embedding response data
-  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+  - `{:error, Ollama.RequestError.t()}` - On validation errors
+  - `{:error, Ollama.ResponseError.t()}` - On HTTP errors
 
   ## See Also
 
@@ -1098,10 +1550,15 @@ defmodule Ollama do
   """
   @spec embed(client(), keyword()) :: response()
   def embed(%__MODULE__{} = client, params) when is_list(params) do
-    with {:ok, params} <- NimbleOptions.validate(params, schema_def(:embed)) do
+    {format, params} = pop_response_format(params)
+    cast_fun = cast_fun_for(:embed, format)
+
+    with {:ok, params} <- normalize_options(params),
+         {:ok, params} <- validate_params(params, schema_def(:embed)) do
       client
       |> req(:post, "/embed", json: Enum.into(params, %{}))
       |> res()
+      |> apply_cast(cast_fun)
     end
   end
 
@@ -1153,7 +1610,8 @@ defmodule Ollama do
   ## Returns
 
   - `{:ok, map()}` - Embedding response data
-  - `{:error, Ollama.HTTPError.t()}` - On HTTP errors
+  - `{:error, Ollama.RequestError.t()}` - On validation errors
+  - `{:error, Ollama.ResponseError.t()}` - On HTTP errors
 
   ## See Also
 
@@ -1162,11 +1620,56 @@ defmodule Ollama do
   @deprecated "Superseded by embed/2"
   @spec embeddings(client(), keyword()) :: response()
   def embeddings(%__MODULE__{} = client, params) when is_list(params) do
-    with {:ok, params} <- NimbleOptions.validate(params, schema_def(:embeddings)) do
+    {format, params} = pop_response_format(params)
+    cast_fun = cast_fun_for(:embeddings, format)
+
+    with {:ok, params} <- normalize_options(params),
+         {:ok, params} <- validate_params(params, schema_def(:embeddings)) do
       client
       |> req(:post, "/embeddings", json: Enum.into(params, %{}))
       |> res()
+      |> apply_cast(cast_fun)
     end
+  end
+
+  @doc """
+  Search the web using Ollama's cloud search API.
+
+  Delegates to `Ollama.Web.search/2`.
+  """
+  @spec web_search(client(), keyword()) :: response()
+  def web_search(%__MODULE__{} = client, params) when is_list(params) do
+    Web.search(client, params)
+  end
+
+  @doc """
+  Search the web using Ollama's cloud search API, raising on error.
+
+  Delegates to `Ollama.Web.search!/2`.
+  """
+  @spec web_search!(client(), keyword()) :: Web.SearchResponse.t()
+  def web_search!(%__MODULE__{} = client, params) when is_list(params) do
+    Web.search!(client, params)
+  end
+
+  @doc """
+  Fetch content from a URL using Ollama's cloud fetch API.
+
+  Delegates to `Ollama.Web.fetch/2`.
+  """
+  @spec web_fetch(client(), keyword()) :: response()
+  def web_fetch(%__MODULE__{} = client, params) when is_list(params) do
+    Web.fetch(client, params)
+  end
+
+  @doc """
+  Fetch content from a URL using Ollama's cloud fetch API, raising on error.
+
+  Delegates to `Ollama.Web.fetch!/2`.
+  """
+  @spec web_fetch!(client(), keyword()) :: Web.FetchResponse.t()
+  def web_fetch!(%__MODULE__{} = client, params) when is_list(params) do
+    Web.fetch!(client, params)
   end
 
   @doc false
@@ -1175,6 +1678,7 @@ defmodule Ollama do
   # Builds the request from the given params
   @spec req(client(), atom(), Req.url(), keyword()) :: req_response()
   defp req(%__MODULE__{req: req}, method, url, opts \\ []) do
+    {cast_fun, opts} = Keyword.pop(opts, :cast)
     opts = Keyword.merge(opts, method: method, url: normalize_url(url))
     stream_opt = get_in(opts, [:json, :stream])
     dest = if is_pid(stream_opt), do: stream_opt, else: self()
@@ -1184,7 +1688,7 @@ defmodule Ollama do
         opts =
           opts
           |> Keyword.update!(:json, &Map.put(&1, :stream, true))
-          |> Keyword.put(:into, stream_handler(dest))
+          |> Keyword.put(:into, stream_handler(dest, cast_fun))
 
         task = Task.async(fn -> req |> Req.request(opts) |> res() end)
 
@@ -1202,7 +1706,6 @@ defmodule Ollama do
     end
   end
 
-  defp normalize_url(%URI{} = uri), do: uri
   defp normalize_url(url) when is_binary(url), do: String.trim_leading(url, "/")
   defp normalize_url(url), do: url
 
@@ -1215,24 +1718,67 @@ defmodule Ollama do
     {:ok, body}
   end
 
-  defp res({:ok, %{status: status}}) do
-    {:error, Ollama.HTTPError.exception(status)}
+  defp res({:ok, %{status: status, body: body}}) do
+    {:error, ResponseError.exception(status: status, body: body)}
   end
 
-  defp res({:error, error}), do: {:error, error}
+  defp res({:ok, %{status: status}}) do
+    {:error, ResponseError.exception(status)}
+  end
 
-  # Normalizes the response returned from the request into a boolean
-  @spec res_bool(req_response()) :: response()
-  defp res_bool({:ok, %{status: status}}) when status in 200..299, do: {:ok, true}
-  defp res_bool({:ok, _res}), do: {:ok, false}
-  defp res_bool({:error, error}), do: {:error, error}
+  defp res({:error, %Req.TransportError{reason: reason}}) do
+    {:error,
+     RequestError.exception(
+       message: "Connection failed: #{inspect(reason)}",
+       reason: :connection_error
+     )}
+  end
+
+  defp res({:error, error}) do
+    {:error, RequestError.exception(inspect(error))}
+  end
+
+  # Normalizes blob uploads, returning the digest on success.
+  @spec res_blob(req_response(), binary()) :: response()
+  defp res_blob({:ok, %{status: status}}, digest) when status in 200..299, do: {:ok, digest}
+
+  defp res_blob({:ok, %{status: status, body: body}}, _digest),
+    do: {:error, ResponseError.exception(status: status, body: body)}
+
+  defp res_blob({:ok, %{status: status}}, _digest), do: {:error, ResponseError.exception(status)}
+
+  defp res_blob({:error, %Req.TransportError{reason: reason}}, _digest) do
+    {:error,
+     RequestError.exception(
+       message: "Connection failed: #{inspect(reason)}",
+       reason: :connection_error
+     )}
+  end
+
+  defp res_blob({:error, error}, _digest), do: {:error, RequestError.exception(inspect(error))}
+
+  # Normalizes status-only responses without raising on HTTP errors.
+  @spec res_status(req_response()) :: response()
+  defp res_status({:ok, %{status: status}}) when status in 200..299, do: {:ok, true}
+  defp res_status({:ok, %{status: _status}}), do: {:ok, false}
+
+  defp res_status({:error, %Req.TransportError{reason: reason}}) do
+    {:error,
+     RequestError.exception(
+       message: "Connection failed: #{inspect(reason)}",
+       reason: :connection_error
+     )}
+  end
+
+  defp res_status({:error, error}), do: {:error, RequestError.exception(inspect(error))}
 
   # Returns a callback to handle streaming responses
-  @spec stream_handler(pid()) :: fun()
-  defp stream_handler(pid) do
+  @spec stream_handler(pid(), function() | nil) :: fun()
+  defp stream_handler(pid, cast_fun) do
     fn {:data, data}, {req, res} ->
       with {:ok, data} <- Jason.decode(data) do
-        Process.send(pid, {self(), {:data, data}}, [])
+        payload = if is_function(cast_fun), do: cast_fun.(data), else: data
+        Process.send(pid, {self(), {:data, payload}}, [])
         {:cont, {req, stream_merge(res, data)}}
       else
         _ -> {:cont, {req, res}}
@@ -1275,11 +1821,8 @@ defmodule Ollama do
       {^pid, {:data, data}} ->
         {[data], task}
 
-      {^ref, {:ok, %Req.Response{status: status}}} when status in 200..299 ->
+      {^ref, {:ok, %{}}} ->
         {:halt, task}
-
-      {^ref, {:ok, %Req.Response{status: status}}} ->
-        raise Ollama.HTTPError.exception(status)
 
       {^ref, {:error, error}} ->
         raise error

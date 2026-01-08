@@ -1,4 +1,4 @@
-ExUnit.start()
+ExUnit.start(exclude: [:cloud_api])
 
 # Load test support modules
 for {module, file} <- [
@@ -10,3 +10,5 @@ for {module, file} <- [
     Code.require_file(file, __DIR__)
   end
 end
+
+{:ok, _pid} = Bandit.start_link(plug: Ollama.MockServer, port: 4000)

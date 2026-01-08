@@ -67,8 +67,34 @@ defmodule Ollama.MixProject do
       ],
       groups_for_modules: [
         Client: [Ollama],
-        Errors: [Ollama.HTTPError],
-        Internals: [Ollama.Blob, Ollama.Schemas]
+        Errors: [Ollama.RequestError, Ollama.ResponseError, Ollama.Errors, Ollama.Retry],
+        Helpers: [Ollama.Image, Ollama.Tool, Ollama.Options, Ollama.Options.Presets],
+        Web: [
+          Ollama.Web,
+          Ollama.Web.SearchResponse,
+          Ollama.Web.SearchResult,
+          Ollama.Web.FetchResponse,
+          Ollama.Web.Tools
+        ],
+        Types: [
+          Ollama.Types,
+          Ollama.Types.Base,
+          Ollama.Types.Logprob,
+          Ollama.Types.ToolCall,
+          Ollama.Types.Message,
+          Ollama.Types.GenerateResponse,
+          Ollama.Types.ChatResponse,
+          Ollama.Types.EmbedResponse,
+          Ollama.Types.EmbeddingsResponse,
+          Ollama.Types.ModelDetails,
+          Ollama.Types.ModelInfo,
+          Ollama.Types.ListResponse,
+          Ollama.Types.ShowResponse,
+          Ollama.Types.ProcessResponse,
+          Ollama.Types.ProgressResponse,
+          Ollama.Types.StatusResponse
+        ],
+        Internals: [Ollama.Blob, Ollama.Schemas, Ollama.HTTPError]
       ]
     ]
   end
