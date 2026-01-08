@@ -18,6 +18,7 @@ else
 end
 
 defmodule ToolAgent do
+  @required_tools ["calculator", "get_date"]
   @tools [
     %{
       type: "function",
@@ -45,7 +46,18 @@ defmodule ToolAgent do
 
   def run(prompt) do
     client = Ollama.init()
-    messages = [%{role: "user", content: prompt}]
+
+    messages = [
+      %{
+        role: "system",
+        content:
+          "You must use the provided tools to answer. " <>
+            "Always call calculator for math and get_date for the current date. " <>
+            "Do not answer directly until the tools are called."
+      },
+      %{role: "user", content: prompt}
+    ]
+
     loop(client, messages, 0)
   end
 
@@ -58,22 +70,75 @@ defmodule ToolAgent do
       Ollama.chat(client,
         model: "llama3.2",
         messages: messages,
-        tools: @tools
+        tools: @tools,
+        options: [temperature: 0]
       )
 
-    case get_in(response, ["message", "tool_calls"]) do
-      nil ->
-        IO.puts("Final: #{response["message"]["content"]}")
+    tool_calls = get_in(response, ["message", "tool_calls"])
+    tool_calls = if is_list(tool_calls), do: tool_calls, else: []
 
-      tool_calls ->
+    case tool_calls do
+      [] ->
+        if iterations < 2 do
+          IO.puts("No tool calls yet; retrying with a stronger instruction...")
+
+          messages =
+            messages ++
+              [
+                %{role: "assistant", content: response["message"]["content"] || ""},
+                %{
+                  role: "user",
+                  content:
+                    "You must call the tools. Call calculator and get_date now. " <>
+                      "Do not answer until you do."
+                }
+              ]
+
+          loop(client, messages, iterations + 1)
+        else
+          IO.puts("Final: #{response["message"]["content"]}")
+        end
+
+      _ ->
         IO.puts("Iteration #{iterations + 1}: Calling #{length(tool_calls)} tool(s)")
 
-        results = Enum.map(tool_calls, &execute_tool/1)
+        tool_results =
+          Enum.map(tool_calls, fn tool_call ->
+            tool_name = get_in(tool_call, ["function", "name"]) || "unknown"
+            %{role: "tool", tool_name: tool_name, content: execute_tool(tool_call)}
+          end)
+
+        called_tools =
+          tool_calls
+          |> Enum.map(&get_in(&1, ["function", "name"]))
+          |> Enum.filter(&is_binary/1)
+
+        missing_tools = Enum.reject(@required_tools, &(&1 in called_tools))
 
         messages =
           messages ++
-            [%{role: "assistant", content: "", tool_calls: tool_calls}] ++
-            Enum.map(results, fn result -> %{role: "tool", content: result} end)
+            [
+              %{
+                role: "assistant",
+                content: response["message"]["content"] || "",
+                tool_calls: tool_calls
+              }
+            ] ++ tool_results
+
+        messages =
+          if missing_tools == [] do
+            messages
+          else
+            messages ++
+              [
+                %{
+                  role: "user",
+                  content:
+                    "You still need to call the following tools: #{Enum.join(missing_tools, ", ")}. " <>
+                      "Call them now and then provide the final answer."
+                }
+              ]
+          end
 
         loop(client, messages, iterations + 1)
     end

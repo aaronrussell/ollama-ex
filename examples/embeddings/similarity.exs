@@ -42,12 +42,13 @@ texts = [
   )
 
 embeddings = response["embeddings"]
+pairs = Enum.zip(texts, embeddings)
 
 IO.puts("Similarity Matrix:")
 IO.puts("-" |> String.duplicate(60))
 
-for {text1, emb1, i} <- Enum.with_index(Enum.zip(texts, embeddings)) do
-  for {text2, emb2, j} <- Enum.with_index(Enum.zip(texts, embeddings)), j > i do
+for {{text1, emb1}, i} <- Enum.with_index(pairs) do
+  for {{text2, emb2}, j} <- Enum.with_index(pairs), j > i do
     sim = Similarity.cosine(emb1, emb2)
 
     IO.puts(

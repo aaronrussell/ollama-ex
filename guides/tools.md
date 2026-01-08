@@ -184,19 +184,121 @@ defmodule Agent do
 end
 ```
 
+## Web Tools Integration
+
+Use predefined web tools for search and fetch:
+
+```elixir
+# Get all web tool definitions
+tools = Ollama.Web.Tools.all()
+
+{:ok, response} = Ollama.chat(client,
+  model: "llama3.2",
+  messages: [%{role: "user", content: "Search for Elixir news"}],
+  tools: tools
+)
+
+# Execute web tool calls
+case get_in(response, ["message", "tool_calls"]) do
+  [%{"function" => %{"name" => "web_search", "arguments" => args}}] ->
+    {:ok, results} = Ollama.web_search(client, query: args["query"])
+    # Continue with results...
+
+  [%{"function" => %{"name" => "web_fetch", "arguments" => args}}] ->
+    {:ok, page} = Ollama.web_fetch(client, url: args["url"])
+    # Continue with page content...
+
+  _ ->
+    response["message"]["content"]
+end
+```
+
+## Thinking with Tools
+
+Combine tool use with thinking mode (supported models only):
+
+```elixir
+{:ok, response} = Ollama.chat(client,
+  model: "gpt-oss:20b-cloud",
+  messages: [%{role: "user", content: "Calculate the weather impact on crops"}],
+  tools: [weather_tool, crop_tool],
+  think: true
+)
+
+# Access thinking process
+IO.puts("Thinking: #{response["message"]["thinking"]}")
+
+# Handle tool calls as usual
+tool_calls = get_in(response, ["message", "tool_calls"])
+```
+
+## Tool Argument Handling
+
+Tool arguments may arrive as a map or JSON string. Handle both:
+
+```elixir
+defp parse_arguments(args) when is_map(args), do: args
+defp parse_arguments(args) when is_binary(args) do
+  case Jason.decode(args) do
+    {:ok, parsed} -> parsed
+    {:error, _} -> %{}
+  end
+end
+
+defp execute_tool(%{"function" => %{"name" => name, "arguments" => args}}) do
+  parsed_args = parse_arguments(args)
+  # Use parsed_args...
+end
+```
+
+## Error Handling
+
+Handle tool execution failures gracefully:
+
+```elixir
+defp execute_tool_safely(tool_call) do
+  try do
+    result = execute_tool(tool_call)
+    Jason.encode!(%{success: true, result: result})
+  rescue
+    e ->
+      Jason.encode!(%{success: false, error: Exception.message(e)})
+  end
+end
+
+# In the agent loop, send error back to model
+{:ok, response} = Ollama.chat(client,
+  model: "llama3.2",
+  messages: messages ++ [
+    %{role: "assistant", content: "", tool_calls: tool_calls},
+    %{role: "tool", content: ~s({"success": false, "error": "API unavailable"})}
+  ],
+  tools: tools
+)
+```
+
 ## Limitations
 
 - **No streaming with tools** - `stream: true` is not supported when using tools
 - **Model dependent** - Not all models support tool use
 - **Tool arguments** - Arguments may arrive as a JSON string or a map
+- **Non-deterministic** - Tool calls may vary between runs
 
 ## Compatible Models
 
-Models with tool support:
-- llama3.2
-- mistral
-- mixtral
-- command-r
-- qwen2.5
+| Model | Tool Support | Thinking + Tools |
+|-------|--------------|------------------|
+| llama3.2 | Yes | No |
+| mistral | Yes | No |
+| mixtral | Yes | No |
+| command-r | Yes | No |
+| qwen2.5 | Yes | No |
+| qwen3 | Yes | Yes |
+| gpt-oss:20b-cloud | Yes | Yes |
+| gpt-oss:120b-cloud | Yes | Yes |
 
-Check model documentation for specific tool capabilities.
+## See Also
+
+- [Cloud API Guide](cloud-api.md) - Web search and fetch details
+- [Thinking Guide](thinking.md) - Thinking mode with tools
+- [Examples](../examples/README.md) - Working tool examples

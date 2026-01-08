@@ -1,6 +1,6 @@
 # Ollama
 
-![Ollama-ex](https://raw.githubusercontent.com/lebrunel/ollama-ex/main/media/poster.webp)
+![Ollama-ex](https://raw.githubusercontent.com/lebrunel/ollama-ex/main/media/poster.png)
 
 [![Hex.pm](https://img.shields.io/hexpm/v/ollama?color=informational)](https://hex.pm/packages/ollama)
 [![License](https://img.shields.io/github/license/lebrunel/ollama-ex?color=informational)](https://github.com/lebrunel/ollama-ex/blob/main/LICENSE)
@@ -403,6 +403,10 @@ Ollama.web_fetch(client, url: "https://elixir-lang.org")
 - [Streaming](guides/streaming.md)
 - [Tools](guides/tools.md)
 - [Structured Outputs](guides/structured-outputs.md)
+- [Thinking Mode](guides/thinking.md)
+- [Embeddings](guides/embeddings.md)
+- [Multimodal](guides/multimodal.md)
+- [Cloud API](guides/cloud-api.md)
 - [Ollama Server Setup](guides/ollama-setup.md)
 - [Cheatsheet](guides/cheatsheet.md)
 

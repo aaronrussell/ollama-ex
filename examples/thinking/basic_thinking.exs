@@ -20,10 +20,21 @@ end
 client = Ollama.init()
 
 model = "deepseek-r1:1.5b"
-messages = [%{role: "user", content: "How many Rs are in the word 'strawberry'?"}]
+
+messages = [
+  %{
+    role: "user",
+    content: "What is 12 * 7? Show your reasoning, then give the final number."
+  }
+]
 
 response =
-  case Ollama.chat(client, model: model, messages: messages, think: true) do
+  case Ollama.chat(client,
+         model: model,
+         messages: messages,
+         think: true,
+         options: [temperature: 0]
+       ) do
     {:ok, response} ->
       response
 
@@ -33,7 +44,7 @@ response =
           "Use a model that supports `think` to see thinking output."
       )
 
-      case Ollama.chat(client, model: model, messages: messages) do
+      case Ollama.chat(client, model: model, messages: messages, options: [temperature: 0]) do
         {:ok, response} -> response
         {:error, error} -> raise "Ollama request failed: #{inspect(error)}"
       end

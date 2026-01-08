@@ -82,5 +82,9 @@ IO.puts(response.message.content)
 
 - [Streaming Guide](streaming.md) - Real-time responses
 - [Tool Use Guide](tools.md) - Function calling
+- [Thinking Mode](thinking.md) - Reasoning and chain-of-thought
+- [Embeddings](embeddings.md) - Semantic search and RAG
+- [Multimodal](multimodal.md) - Vision and image analysis
+- [Cloud API](cloud-api.md) - Web search and cloud models
 - [Ollama Server Setup](ollama-setup.md) - Local and cloud configuration
 - [Examples](../examples/README.md) - Working code samples

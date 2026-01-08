@@ -36,6 +36,8 @@ Ollama.chat(client, model: "llama3.2", messages: [%{role: "user", content: "Hi"}
 
 ```elixir
 Ollama.completion(client, model: "llama3.2", prompt: "Once upon a time")
+Ollama.generate(client, model: "llama3.2", prompt: "...")  # Alias
+Ollama.completion(client, ..., suffix: "return result")    # Fill-in-middle
 ```
 
 ## Streaming
@@ -61,6 +63,7 @@ Ollama.chat(client, ..., format: %{type: "object", properties: %{...}})
 Ollama.chat(client, ..., tools: [%{type: "function", function: %{name: "...", ...}}])
 Ollama.chat(client, ..., tools: [&MyTools.add/2])       # Function → tool
 Ollama.Tool.define(:get_weather, description: "...", parameters: [...])
+Ollama.Web.Tools.all()                                  # Web search/fetch tools
 ```
 
 ## Images (Multimodal)
@@ -93,7 +96,8 @@ Ollama.web_fetch(client, url: "https://elixir-lang.org")
 ## Thinking
 
 ```elixir
-Ollama.chat(client, ..., think: true)
+Ollama.chat(client, ..., think: true)                   # Basic thinking
+Ollama.chat(client, ..., think: "high")                 # Thinking levels (gpt-oss)
 ```
 
 ## Embeddings
@@ -101,6 +105,7 @@ Ollama.chat(client, ..., think: true)
 ```elixir
 Ollama.embed(client, model: "nomic-embed-text", input: "text")
 Ollama.embed(client, model: "nomic-embed-text", input: ["text1", "text2"])
+Ollama.embed(client, ..., truncate: true, dimensions: 256)
 ```
 
 ## Model Management

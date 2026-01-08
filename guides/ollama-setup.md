@@ -334,4 +334,5 @@ mix test --include cloud_api
 - [Streaming](streaming.md)
 - [Tools](tools.md)
 - [Structured Outputs](structured-outputs.md)
+- [Cloud API](cloud-api.md) - Web search and cloud models
 - [Examples](../examples/README.md)

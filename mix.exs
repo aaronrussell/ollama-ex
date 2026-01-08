@@ -56,6 +56,10 @@ defmodule Ollama.MixProject do
         {"guides/streaming.md", title: "Streaming"},
         {"guides/tools.md", title: "Tools"},
         {"guides/structured-outputs.md", title: "Structured Outputs"},
+        {"guides/thinking.md", title: "Thinking Mode"},
+        {"guides/embeddings.md", title: "Embeddings"},
+        {"guides/multimodal.md", title: "Multimodal"},
+        {"guides/cloud-api.md", title: "Cloud API"},
         {"guides/cheatsheet.md", title: "Cheatsheet"},
         {"examples/README.md", title: "Examples", filename: "examples"},
         {"LICENSE", title: "License"}
