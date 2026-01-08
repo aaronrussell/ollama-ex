@@ -96,7 +96,7 @@ defmodule Ollama do
 
   #{doc(:chat_message)}
   """
-  @type message() :: unquote(NimbleOptions.option_typespec(schema(:chat_message)))
+  @type message() :: unquote(NimbleOptions.option_typespec(schema_def(:chat_message)))
 
   schema(:tool_def,
     type: [
@@ -133,7 +133,7 @@ defmodule Ollama do
 
   #{doc(:tool_def)}
   """
-  @type tool() :: unquote(NimbleOptions.option_typespec(schema(:tool_def)))
+  @type tool() :: unquote(NimbleOptions.option_typespec(schema_def(:tool_def)))
 
   @typedoc "Client response"
   @type response() ::
@@ -248,12 +248,12 @@ defmodule Ollama do
       doc: "The ollama model name."
     ],
     messages: [
-      type: {:list, {:map, schema(:chat_message).schema}},
+      type: {:list, {:map, schema_def(:chat_message).schema}},
       required: true,
       doc: "List of messages - used to keep a chat memory."
     ],
     tools: [
-      type: {:list, {:map, schema(:tool_def).schema}},
+      type: {:list, {:map, schema_def(:tool_def).schema}},
       doc: "Tools for the model to use if supported (requires `stream` to be `false`)"
     ],
     format: [
@@ -352,7 +352,7 @@ defmodule Ollama do
   """
   @spec chat(client(), keyword()) :: response()
   def chat(%__MODULE__{} = client, params) when is_list(params) do
-    with {:ok, params} <- NimbleOptions.validate(params, schema(:chat)) do
+    with {:ok, params} <- NimbleOptions.validate(params, schema_def(:chat)) do
       client
       |> req(:post, "/chat", json: Enum.into(params, %{}))
       |> res()
@@ -472,7 +472,7 @@ defmodule Ollama do
   """
   @spec completion(client(), keyword()) :: response()
   def completion(%__MODULE__{} = client, params) when is_list(params) do
-    with {:ok, params} <- NimbleOptions.validate(params, schema(:completion)) do
+    with {:ok, params} <- NimbleOptions.validate(params, schema_def(:completion)) do
       client
       |> req(:post, "/generate", json: Enum.into(params, %{}))
       |> res()
@@ -534,7 +534,7 @@ defmodule Ollama do
   """
   @spec create_model(client(), keyword()) :: response()
   def create_model(%__MODULE__{} = client, params) when is_list(params) do
-    with {:ok, params} <- NimbleOptions.validate(params, schema(:create_model)) do
+    with {:ok, params} <- NimbleOptions.validate(params, schema_def(:create_model)) do
       body =
         %{}
         |> Map.put(:name, params[:name])
@@ -662,7 +662,7 @@ defmodule Ollama do
   """
   @spec preload(client(), keyword()) :: response()
   def preload(%__MODULE__{} = client, params) when is_list(params) do
-    with {:ok, params} <- NimbleOptions.validate(params, schema(:load_model)) do
+    with {:ok, params} <- NimbleOptions.validate(params, schema_def(:load_model)) do
       client
       |> req(:post, "/generate", json: Enum.into(params, %{}))
       |> res_bool()
@@ -699,7 +699,7 @@ defmodule Ollama do
   """
   @spec unload(client(), keyword()) :: response()
   def unload(%__MODULE__{} = client, params) when is_list(params) do
-    with {:ok, params} <- NimbleOptions.validate(params, schema(:load_model)) do
+    with {:ok, params} <- NimbleOptions.validate(params, schema_def(:load_model)) do
       params = Keyword.put(params, :keep_alive, 0)
 
       client
@@ -755,7 +755,7 @@ defmodule Ollama do
   """
   @spec show_model(client(), keyword()) :: response()
   def show_model(%__MODULE__{} = client, params) when is_list(params) do
-    with {:ok, params} <- NimbleOptions.validate(params, schema(:show_model)) do
+    with {:ok, params} <- NimbleOptions.validate(params, schema_def(:show_model)) do
       client
       |> req(:post, "/show", json: Enum.into(params, %{}))
       |> res()
@@ -785,7 +785,7 @@ defmodule Ollama do
 
   ## Options
 
-  #{doc(:delete_model)}
+  #{doc(:copy_model)}
 
   ## Example
 
@@ -808,7 +808,7 @@ defmodule Ollama do
   """
   @spec copy_model(client(), keyword()) :: response()
   def copy_model(%__MODULE__{} = client, params) when is_list(params) do
-    with {:ok, params} <- NimbleOptions.validate(params, schema(:copy_model)) do
+    with {:ok, params} <- NimbleOptions.validate(params, schema_def(:copy_model)) do
       client
       |> req(:post, "/copy", json: Enum.into(params, %{}))
       |> res_bool()
@@ -853,7 +853,7 @@ defmodule Ollama do
   """
   @spec delete_model(client(), keyword()) :: response()
   def delete_model(%__MODULE__{} = client, params) when is_list(params) do
-    with {:ok, params} <- NimbleOptions.validate(params, schema(:delete_model)) do
+    with {:ok, params} <- NimbleOptions.validate(params, schema_def(:delete_model)) do
       client
       |> req(:delete, "/delete", json: Enum.into(params, %{}))
       |> res_bool()
@@ -907,7 +907,7 @@ defmodule Ollama do
   """
   @spec pull_model(client(), keyword()) :: response()
   def pull_model(%__MODULE__{} = client, params) when is_list(params) do
-    with {:ok, params} <- NimbleOptions.validate(params, schema(:pull_model)) do
+    with {:ok, params} <- NimbleOptions.validate(params, schema_def(:pull_model)) do
       client
       |> req(:post, "/pull", json: Enum.into(params, %{}))
       |> res()
@@ -962,7 +962,7 @@ defmodule Ollama do
   """
   @spec push_model(client(), keyword()) :: response()
   def push_model(%__MODULE__{} = client, params) when is_list(params) do
-    with {:ok, params} <- NimbleOptions.validate(params, schema(:push_model)) do
+    with {:ok, params} <- NimbleOptions.validate(params, schema_def(:push_model)) do
       client
       |> req(:post, "/push", json: Enum.into(params, %{}))
       |> res()
@@ -1098,7 +1098,7 @@ defmodule Ollama do
   """
   @spec embed(client(), keyword()) :: response()
   def embed(%__MODULE__{} = client, params) when is_list(params) do
-    with {:ok, params} <- NimbleOptions.validate(params, schema(:embed)) do
+    with {:ok, params} <- NimbleOptions.validate(params, schema_def(:embed)) do
       client
       |> req(:post, "/embed", json: Enum.into(params, %{}))
       |> res()
@@ -1162,12 +1162,15 @@ defmodule Ollama do
   @deprecated "Superseded by embed/2"
   @spec embeddings(client(), keyword()) :: response()
   def embeddings(%__MODULE__{} = client, params) when is_list(params) do
-    with {:ok, params} <- NimbleOptions.validate(params, schema(:embeddings)) do
+    with {:ok, params} <- NimbleOptions.validate(params, schema_def(:embeddings)) do
       client
       |> req(:post, "/embeddings", json: Enum.into(params, %{}))
       |> res()
     end
   end
+
+  @doc false
+  def __schemas__, do: @schemas
 
   # Builds the request from the given params
   @spec req(client(), atom(), Req.url(), keyword()) :: req_response()
