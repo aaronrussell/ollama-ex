@@ -956,7 +956,7 @@ defmodule Ollama do
       doc: "How long to keep the model loaded.",
     ],
     dimensions: [
-      type: {:or, [:integer, :string]},
+      type: :integer,
       doc: "The dimensions of the embedding vector to return (for models that support variable dimensions).",
     ],
     options: [
