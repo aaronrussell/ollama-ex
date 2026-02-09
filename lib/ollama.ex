@@ -955,6 +955,10 @@ defmodule Ollama do
       type: {:or, [:integer, :string]},
       doc: "How long to keep the model loaded.",
     ],
+    dimensions: [
+      type: {:or, [:integer, :string]},
+      doc: "The dimensions of the embedding vector to return (for models that support variable dimensions).",
+    ],
     options: [
       type: {:map, {:or, [:atom, :string]}, :any},
       doc: "Additional advanced [model parameters](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).",
