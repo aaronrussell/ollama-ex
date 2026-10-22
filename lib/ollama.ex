@@ -680,7 +680,7 @@ defmodule Ollama do
 
   ## Example
 
-      iex> Ollama.preload(client, model: "llama3.1", timeout: 3_600_000)
+      iex> Ollama.preload(client, model: "llama3.1", keep_alive: "1h")
       true
   """
   @spec preload(client(), keyword()) :: response()
@@ -701,7 +701,7 @@ defmodule Ollama do
 
   ## Example
 
-      iex> Ollama.preload(client, model: "llama3.1")
+      iex> Ollama.unload(client, model: "llama3.1")
       true
   """
   @spec unload(client(), keyword()) :: response()
