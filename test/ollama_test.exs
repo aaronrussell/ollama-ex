@@ -54,6 +54,29 @@ defmodule OllamaTest do
       assert is_map(res["message"])
     end
 
+    test "accepts logprobs and top_logprobs", %{client: client} do
+      assert {:ok, res} = Ollama.chat(client, [
+        model: "llama2",
+        messages: [
+          %{role: "user", content: "Why is the sky blue?"}
+        ],
+        logprobs: true,
+        top_logprobs: 5,
+      ])
+      assert res["done"]
+    end
+
+    test "rejects top_logprobs outside 0-20", %{client: client} do
+      assert {:error, %NimbleOptions.ValidationError{}} = Ollama.chat(client, [
+        model: "llama2",
+        messages: [
+          %{role: "user", content: "Why is the sky blue?"}
+        ],
+        logprobs: true,
+        top_logprobs: 21,
+      ])
+    end
+
     test "generates a response with thinking", %{client: client} do
       assert {:ok, res} = Ollama.chat(client, [
         model: "gpt-oss",
@@ -112,6 +135,16 @@ defmodule OllamaTest do
   end
 
   describe "completion/2" do
+    test "accepts logprobs and top_logprobs", %{client: client} do
+      assert {:ok, res} = Ollama.completion(client, [
+        model: "llama2",
+        prompt: "Why is the sky blue?",
+        logprobs: true,
+        top_logprobs: 5,
+      ])
+      assert res["done"]
+    end
+
     test "generates a response for a given prompt", %{client: client} do
       assert {:ok, res} = Ollama.completion(client, [
         model: "llama2",
