@@ -419,6 +419,14 @@ defmodule Ollama do
       type: {:or, [:integer, :string]},
       doc: "How long to keep the model loaded.",
     ],
+    logprobs: [
+      type: :boolean,
+      doc: "*(optional)* Set `true` to return log probabilities of the output tokens.",
+    ],
+    top_logprobs: [
+      type: {:in, 0..20},
+      doc: "*(optional)* Number of most likely tokens (0-20) to return at each position, each with its log probability. Only applies when `logprobs` is `true`.",
+    ],
     options: [
       type: {:map, {:or, [:atom, :string]}, :any},
       doc: "Additional advanced [model parameters](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).",
@@ -527,6 +535,14 @@ defmodule Ollama do
     keep_alive: [
       type: {:or, [:integer, :string]},
       doc: "How long to keep the model loaded.",
+    ],
+    logprobs: [
+      type: :boolean,
+      doc: "*(optional)* Set `true` to return log probabilities of the output tokens.",
+    ],
+    top_logprobs: [
+      type: {:in, 0..20},
+      doc: "*(optional)* Number of most likely tokens (0-20) to return at each position, each with its log probability. Only applies when `logprobs` is `true`.",
     ],
     options: [
       type: {:map, {:or, [:atom, :string]}, :any},
