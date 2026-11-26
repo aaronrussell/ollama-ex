@@ -273,7 +273,19 @@ defmodule Ollama do
     tool_calls: [
       type: {:list, @permissive_map},
       doc: "*(optional)* List of tools the model wants to use."
-    ]
+    ],
+    thinking: [
+      type: :string,
+      doc: "*(optional)* The model's thinking, when passing back an assistant message generated with `think: true`.",
+    ],
+    tool_name: [
+      type: :string,
+      doc: "*(optional)* For `tool` messages, the name of the tool that was executed.",
+    ],
+    tool_call_id: [
+      type: :string,
+      doc: "*(optional)* For `tool` messages, the `id` of the tool call this result responds to.",
+    ],
   ]
 
   @typedoc """

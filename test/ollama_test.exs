@@ -54,6 +54,20 @@ defmodule OllamaTest do
       assert is_map(res["message"])
     end
 
+    test "accepts thinking and tool result fields in messages", %{client: client} do
+      assert {:ok, res} = Ollama.chat(client, [
+        model: "llama2",
+        messages: [
+          %{role: "user", content: "What is the price of AAPL?"},
+          %{role: "assistant", content: "", thinking: "I should look up the price.", tool_calls: [
+            %{"id" => "call_1", "function" => %{"name" => "get_stock_price", "arguments" => %{"ticker" => "AAPL"}}}
+          ]},
+          %{role: "tool", content: "$1568.12", tool_name: "get_stock_price", tool_call_id: "call_1"},
+        ],
+      ])
+      assert res["done"]
+    end
+
     test "generates a response with thinking", %{client: client} do
       assert {:ok, res} = Ollama.chat(client, [
         model: "gpt-oss",
