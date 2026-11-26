@@ -54,6 +54,18 @@ defmodule OllamaTest do
       assert is_map(res["message"])
     end
 
+    test "accepts truncate and shift", %{client: client} do
+      assert {:ok, res} = Ollama.chat(client, [
+        model: "llama2",
+        messages: [
+          %{role: "user", content: "Why is the sky blue?"}
+        ],
+        truncate: false,
+        shift: false,
+      ])
+      assert res["done"]
+    end
+
     test "generates a response with thinking", %{client: client} do
       assert {:ok, res} = Ollama.chat(client, [
         model: "gpt-oss",
@@ -112,6 +124,16 @@ defmodule OllamaTest do
   end
 
   describe "completion/2" do
+    test "accepts truncate and shift", %{client: client} do
+      assert {:ok, res} = Ollama.completion(client, [
+        model: "llama2",
+        prompt: "Why is the sky blue?",
+        truncate: false,
+        shift: false,
+      ])
+      assert res["done"]
+    end
+
     test "generates a response for a given prompt", %{client: client} do
       assert {:ok, res} = Ollama.completion(client, [
         model: "llama2",

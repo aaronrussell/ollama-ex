@@ -419,6 +419,14 @@ defmodule Ollama do
       type: {:or, [:integer, :string]},
       doc: "How long to keep the model loaded.",
     ],
+    truncate: [
+      type: :boolean,
+      doc: "*(optional)* Set `true` to truncate the prompt if it exceeds the context length, or `false` to return an error instead.",
+    ],
+    shift: [
+      type: :boolean,
+      doc: "*(optional)* Set `true` to shift the context window when the context length is reached during generation, or `false` to stop instead.",
+    ],
     options: [
       type: {:map, {:or, [:atom, :string]}, :any},
       doc: "Additional advanced [model parameters](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).",
@@ -527,6 +535,14 @@ defmodule Ollama do
     keep_alive: [
       type: {:or, [:integer, :string]},
       doc: "How long to keep the model loaded.",
+    ],
+    truncate: [
+      type: :boolean,
+      doc: "*(optional)* Set `true` to truncate the prompt if it exceeds the context length, or `false` to return an error instead.",
+    ],
+    shift: [
+      type: :boolean,
+      doc: "*(optional)* Set `true` to shift the context window when the context length is reached during generation, or `false` to stop instead.",
     ],
     options: [
       type: {:map, {:or, [:atom, :string]}, :any},
